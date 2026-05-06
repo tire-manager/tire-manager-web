@@ -1,33 +1,31 @@
 // src/types/tire.ts
 export type TireStatus = "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "DISCARDED";
-
-export type TirePosition =
-  | "FRONT_LEFT"
-  | "FRONT_RIGHT"
-  | "REAR_LEFT_OUTER"
-  | "REAR_LEFT_INNER"
-  | "REAR_RIGHT_INNER"
-  | "REAR_RIGHT_OUTER";
-
 export interface Tire {
   id: string;
   serialNumber: string;
   brand: string;
   model: string;
-  currentTreadDepth: number; // en mm
+  size: string;
+  initialTreadDepth: number;
+  currentTreadDepth: number;
+  price?: number;
+  currency?: "PEN" | "USD";
   status: TireStatus;
-  truckId?: string;
-  position?: TirePosition;
-  lastInspectionDate: number;
-  price?: number; // Costo de compra de la llanta
+  warehouseId?: string;
+  truckId?: string | null;
+  position?: string | null;
   initialOdometer?: number;
+  createdAt?: any;
 }
 
-export interface InspectionLog {
-  id: string;
+export interface TireHistory {
+  id?: string;
   tireId: string;
-  recordedDepth: number;
-  driverId: string;
-  timestamp: number;
-  notes?: string;
+  truckId: string; // Puede ser el ID del camión o "DESMONTADO"
+  driverId: string; // ID del usuario que realizó la acción
+  date: any;
+  newTreadDepth: number;
+  currentOdometer: number;
+  notes: string;
+  type: "MOUNT" | "UNMOUNT" | "INSPECTION" | "REPAIR"; // Unificamos tipos aquí
 }

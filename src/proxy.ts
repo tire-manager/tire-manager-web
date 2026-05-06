@@ -3,33 +3,39 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
-  // Verificamos si existe el token en las cookies
   const sessionCookie = request.cookies.get("firebaseToken")?.value;
+  const userRole = request.cookies.get("userRole")?.value;
+  const { pathname } = request.nextUrl;
 
-  const isAuthPage = request.nextUrl.pathname.startsWith("/login");
-  const isAdminPage = request.nextUrl.pathname.startsWith("/admin");
-  const isDriverPage = request.nextUrl.pathname.startsWith("/driver");
+  const isAuthPage = pathname.startsWith("/login");
+  const isAdminPage = pathname.startsWith("/admin");
+  const isDriverPage = pathname.startsWith("/driver");
 
-  // Si no hay sesión y no está en login, redirigir a login
+  // 1. SI NO HAY SESIÓN: Bloqueo total de áreas privadas
   if (!sessionCookie && (isAdminPage || isDriverPage)) {
     return NextResponse.redirect(new URL("/login", request.url));
   }
 
-  // Si hay sesión y está intentando acceder al login, redirigirlo a su rol
+  // 2. SI HAY SESIÓN Y ESTÁ EN LOGIN: Mandarlo a su pantalla principal
   if (sessionCookie && isAuthPage) {
-    const userRole = request.cookies.get("userRole")?.value;
+    return userRole === "ADMIN"
+      ? NextResponse.redirect(new URL("/admin/dashboard", request.url))
+      : NextResponse.redirect(new URL("/driver", request.url));
+  }
 
-    if (userRole === "ADMIN") {
-      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
-    } else {
-      return NextResponse.redirect(new URL("/driver/dashboard", request.url));
-    }
+  // 3. SEGURIDAD CRUZADA: Un Driver no puede entrar a /admin
+  if (sessionCookie && isAdminPage && userRole !== "ADMIN") {
+    return NextResponse.redirect(new URL("/driver", request.url));
+  }
+
+  // 4. LIMPIEZA DE RUTAS: Redirigir /driver/dashboard a la nueva vista unificada /driver
+  if (sessionCookie && pathname === "/driver/dashboard") {
+    return NextResponse.redirect(new URL("/driver", request.url));
   }
 
   return NextResponse.next();
 }
 
-// La configuración del matcher se mantiene igual en la v16
 export const config = {
   matcher: ["/login", "/admin/:path*", "/driver/:path*"],
 };

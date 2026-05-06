@@ -9,16 +9,9 @@ import {
   setDoc,
   where,
 } from "firebase/firestore";
-import { UserRole } from "@/types/user";
+import { UserProfile, UserRole } from "@/types/user";
 
-export interface UserProfile {
-  uid: string;
-  email: string;
-  displayName: string;
-  role: UserRole;
-  truckId?: string; // Solo para Choferes
-  createdAt: number;
-}
+export type UserStatus = "ACTIVE" | "ON_VACATION" | "INACTIVE";
 
 export const getUserProfile = async (
   uid: string,
@@ -41,7 +34,9 @@ export const createUserProfile = async (
   profile: UserProfile,
 ): Promise<void> => {
   try {
-    await setDoc(doc(db, "users", profile.uid), profile);
+    // Aseguramos que los usuarios nuevos entren como activos por defecto
+    const newProfile = { ...profile, status: profile.status || "ACTIVE" };
+    await setDoc(doc(db, "users", profile.uid), newProfile);
   } catch (error) {
     console.error("Error creando perfil:", error);
     throw new Error("No se pudo crear el perfil.");
@@ -59,6 +54,21 @@ export const getUsers = async (): Promise<UserProfile[]> => {
   } catch (error) {
     console.error("Error al obtener usuarios:", error);
     return [];
+  }
+};
+
+// <-- NUEVA FUNCIÓN PARA EDITAR USUARIOS -->
+export const updateUserProfile = async (
+  uid: string,
+  data: Partial<UserProfile>,
+) => {
+  try {
+    const docRef = doc(db, "users", uid);
+    await setDoc(docRef, data, { merge: true });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar perfil:", error);
+    throw new Error("No se pudo actualizar el perfil.");
   }
 };
 
@@ -87,9 +97,17 @@ export const createUserViaApi = async (userData: any) => {
 
 export const getDrivers = async (): Promise<UserProfile[]> => {
   try {
+    // 1. Consultamos solo por rol para evitar el error de Índices en Firebase
     const q = query(collection(db, "users"), where("role", "==", "DRIVER"));
     const snapshot = await getDocs(q);
-    return snapshot.docs.map((doc) => doc.data() as UserProfile);
+
+    const allDrivers = snapshot.docs.map((doc) => doc.data() as UserProfile);
+
+    // 2. Filtramos localmente (JavaScript) aceptando a los ACTIVE
+    // y a los usuarios antiguos que aún no tienen el campo status
+    return allDrivers.filter(
+      (driver) => !driver.status || driver.status === "ACTIVE",
+    );
   } catch (error) {
     console.error("Error al obtener choferes:", error);
     return [];
