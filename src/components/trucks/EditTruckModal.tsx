@@ -1,23 +1,26 @@
-// src/components/trucks/AddTruckModal.tsx
+// src/components/trucks/EditTruckModal.tsx
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, Truck as TruckIcon, User } from "lucide-react";
-import { addTruck, assignDriverToTruck } from "@/services/truckService";
+import { X, Edit2, User } from "lucide-react";
+import { updateTruck, assignDriverToTruck } from "@/services/truckService";
 import { getDrivers } from "@/services/userService";
 import { getGlobalSettings, GlobalSettings } from "@/services/settingsService";
+import { Truck } from "@/types/truck";
 import toast from "react-hot-toast";
 import { UserProfile } from "@/types/user";
 
-interface AddTruckModalProps {
+interface EditTruckModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  truck: Truck;
 }
 
-export const AddTruckModal: React.FC<AddTruckModalProps> = ({
+export const EditTruckModal: React.FC<EditTruckModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  truck,
 }) => {
   const [loading, setLoading] = useState(false);
   const [drivers, setDrivers] = useState<UserProfile[]>([]);
@@ -28,24 +31,27 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
     brand: "",
     model: "",
     year: new Date().getFullYear(),
-    status: "ACTIVE" as "ACTIVE" | "IN_MAINTENANCE" | "INACTIVE",
+    status: "ACTIVE" as Truck["status"],
     assignedDriverId: "",
-    axleConfig: "3_EJES_10_LLANTAS" as
-      | "2_EJES"
-      | "3_EJES_10_LLANTAS"
-      | "3_EJES_BALON"
-      | "3_EJES_12_LLANTAS"
-      | "4_EJES",
-    initialOdometer: "",
   });
 
-  // Cargar lista de choferes y catálogo de vehículos al abrir el modal
   useEffect(() => {
     if (isOpen) {
       getDrivers().then(setDrivers);
       getGlobalSettings().then(setConfig);
     }
-  }, [isOpen]);
+
+    if (truck && isOpen) {
+      setFormData({
+        licensePlate: truck.licensePlate,
+        brand: truck.brand || "",
+        model: truck.model || "",
+        year: truck.year,
+        status: truck.status,
+        assignedDriverId: truck.assignedDriverId || "",
+      });
+    }
+  }, [truck, isOpen]);
 
   if (!isOpen) return null;
 
@@ -54,41 +60,26 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
     setLoading(true);
 
     try {
-      const newTruckResponse = await addTruck({
+      await updateTruck(truck.id, {
         licensePlate: formData.licensePlate.toUpperCase(),
         brand: formData.brand.toUpperCase(),
         model: formData.model.toUpperCase(),
         year: formData.year,
         status: formData.status,
-        axleConfig: formData.axleConfig,
-        currentOdometer: parseFloat(formData.initialOdometer) || 0,
-        assignedDriverId: formData.assignedDriverId || null,
       });
 
-      if (formData.assignedDriverId && newTruckResponse?.id) {
-        await assignDriverToTruck(
-          newTruckResponse.id,
-          formData.assignedDriverId,
-        );
+      const oldDriver = truck.assignedDriverId || null;
+      const newDriver = formData.assignedDriverId || null;
+
+      if (oldDriver !== newDriver) {
+        await assignDriverToTruck(truck.id, newDriver, oldDriver);
       }
 
-      toast.success("¡Camión registrado exitosamente!");
+      toast.success("Camión y asignaciones actualizados");
       onSuccess();
       onClose();
-
-      setFormData({
-        licensePlate: "",
-        brand: "",
-        model: "",
-        year: new Date().getFullYear(),
-        status: "ACTIVE",
-        assignedDriverId: "",
-        axleConfig: "3_EJES_10_LLANTAS",
-        initialOdometer: "",
-      });
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Error al registrar el camión.");
+      toast.error(err.message || "Error al actualizar el camión.");
     } finally {
       setLoading(false);
     }
@@ -99,11 +90,11 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
-              <TruckIcon className="w-5 h-5" />
+            <div className="bg-amber-100 p-2 rounded-xl text-amber-600">
+              <Edit2 className="w-5 h-5" />
             </div>
             <h2 className="text-xl font-black text-slate-800">
-              Registrar Vehículo
+              Editar Vehículo
             </h2>
           </div>
           <button
@@ -129,8 +120,7 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
                   licensePlate: e.target.value.toUpperCase(),
                 })
               }
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-black text-slate-900 placeholder:normal-case placeholder:font-medium"
-              placeholder="Ej: ABC-1234"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-black text-slate-900"
             />
           </div>
 
@@ -189,8 +179,6 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
               <input
                 type="number"
                 required
-                min="1990"
-                max={new Date().getFullYear() + 1}
                 value={formData.year}
                 onChange={(e) =>
                   setFormData({ ...formData, year: parseInt(e.target.value) })
@@ -200,7 +188,7 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">
-                Estado Inicial
+                Estado
               </label>
               <select
                 value={formData.status}
@@ -211,55 +199,14 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
               >
                 <option value="ACTIVE">🟢 Activo</option>
                 <option value="IN_MAINTENANCE">🟠 En Taller</option>
-                <option value="INACTIVE">🔴 Inactivo</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">
-                Odómetro (KM)
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={formData.initialOdometer}
-                onChange={(e) =>
-                  setFormData({ ...formData, initialOdometer: e.target.value })
-                }
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-mono font-bold"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">
-                Config. de Ejes
-              </label>
-              <select
-                required
-                value={formData.axleConfig}
-                onChange={(e) =>
-                  setFormData({
-                    ...formData,
-                    axleConfig: e.target.value as any,
-                  })
-                }
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium"
-              >
-                <option value="2_EJES">UNIDAD 2 EJE</option>
-                <option value="3_EJES_10_LLANTAS">3 EJES (10 Llantas)</option>
-                <option value="3_EJES_BALON">3 EJES BALON</option>
-                <option value="3_EJES_12_LLANTAS">3 EJES (12 Llantas)</option>
-                <option value="4_EJES">UNIDAD DE 4 EJES</option>
+                <option value="INACTIVE">🔴 Inactivo (Baja)</option>
               </select>
             </div>
           </div>
 
           <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
             <label className="block text-sm font-black text-blue-900 mb-2 flex items-center gap-2">
-              <User className="w-4 h-4" /> Chofer Asignado (Opcional)
+              <User className="w-4 h-4" /> Chofer Asignado
             </label>
             <select
               value={formData.assignedDriverId}
@@ -268,23 +215,27 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
               }
               className="w-full p-3 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"
             >
-              <option value="">-- Dejar en Patio (Sin Chofer) --</option>
+              <option value="">-- Sin Chofer Asignado --</option>
               {drivers.map((driver) => {
-                const isBusy = !!driver.truckId;
+                // Está ocupado si tiene un camión que NO es el camión que estamos editando actualmente
+                const isBusy = !!driver.truckId && driver.truckId !== truck.id;
+
                 return (
                   <option
                     key={driver.uid}
                     value={driver.uid}
-                    disabled={isBusy} // Bloquea si ya tiene camión
+                    disabled={isBusy} // Bloquea choferes de otros camiones
                   >
                     {driver.displayName}{" "}
-                    {isBusy
-                      ? `(En ruta con ${driver.truckId})`
-                      : "(Disponible)"}
+                    {isBusy ? `(Ocupado en ${driver.truckId})` : ""}
                   </option>
                 );
               })}
             </select>
+            <p className="text-xs text-blue-700 mt-2">
+              Al seleccionar un chofer, el sistema sincronizará su cuenta móvil
+              automáticamente.
+            </p>
           </div>
 
           <div className="pt-2 flex gap-3">
@@ -298,9 +249,9 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-3 text-white bg-blue-600 hover:bg-blue-700 font-black rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 flex justify-center items-center"
+              className="flex-1 px-4 py-3 text-white bg-amber-600 hover:bg-amber-700 font-black rounded-xl shadow-lg shadow-amber-600/30 transition-all disabled:opacity-50"
             >
-              {loading ? "Registrando..." : "Registrar Camión"}
+              {loading ? "Guardando..." : "Guardar Cambios"}
             </button>
           </div>
         </form>

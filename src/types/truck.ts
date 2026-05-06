@@ -9,4 +9,11 @@ export interface Truck {
   status: "ACTIVE" | "IN_MAINTENANCE" | "INACTIVE";
   createdAt: number;
   currentOdometer?: number;
+  // Actualizado con los 5 ejes exactos
+  axleConfig?:
+    | "2_EJES"
+    | "3_EJES_10_LLANTAS"
+    | "3_EJES_BALON"
+    | "3_EJES_12_LLANTAS"
+    | "4_EJES";
 }

@@ -2,8 +2,7 @@
 import { db } from "@/lib/firebase/clientApp";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
-// Actualiza la interfaz en src/services/settingsService.ts
-
+// Usamos una sola interfaz porque la estructura es idéntica
 export interface Brand {
   id: string;
   name: string;
@@ -11,36 +10,20 @@ export interface Brand {
 }
 
 export interface GlobalSettings {
+  companyName?: string;
+  companyRuc?: string;
+  companyAddress?: string;
+  exchangeRateUSD?: number;
   criticalWearLimit: number;
   defaultInitialDepth: number;
   alertEmail: string;
-  // Nuevos campos para diccionarios
-  brands: Brand[];
-  positions: string[];
+
+  // Catálogos separados para mantener la base de datos limpia
+  tireBrands: Brand[];
+  vehicleBrands: Brand[];
 }
 
-// Actualiza los valores por defecto en getGlobalSettings
-const defaultSettings: GlobalSettings = {
-  criticalWearLimit: 3.0,
-  defaultInitialDepth: 12.0,
-  alertEmail: "",
-  brands: [
-    { id: "1", name: "Michelin", models: ["X Multi Z", "X Line Energy"] },
-    { id: "2", name: "Bridgestone", models: ["R249", "M729"] },
-  ],
-  positions: [
-    "FRONT_LEFT",
-    "FRONT_RIGHT",
-    "REAR_LEFT_OUTER",
-    "REAR_LEFT_INNER",
-    "REAR_RIGHT_INNER",
-    "REAR_RIGHT_OUTER",
-  ],
-};
-
 const SETTINGS_ID = "general";
-
-// src/services/settingsService.ts
 
 export const getGlobalSettings = async (): Promise<GlobalSettings> => {
   try {
@@ -48,22 +31,43 @@ export const getGlobalSettings = async (): Promise<GlobalSettings> => {
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
-      return docSnap.data() as GlobalSettings;
-    } else {
-      // Este objeto debe tener TODAS las propiedades de la interfaz
+      const data = docSnap.data();
       return {
+        companyName: data.companyName || "",
+        companyRuc: data.companyRuc || "",
+        companyAddress: data.companyAddress || "",
+        exchangeRateUSD: data.exchangeRateUSD || 3.75,
+        criticalWearLimit: data.criticalWearLimit || 3.0,
+        defaultInitialDepth: data.defaultInitialDepth || 12.0,
+        alertEmail: data.alertEmail || "",
+
+        // Migración automática: Si existía 'brands' antiguo, lo toma como 'tireBrands'
+        tireBrands: data.tireBrands || data.brands || [],
+
+        // Catálogo de Vehículos con valores por defecto
+        vehicleBrands: data.vehicleBrands || [
+          { id: "1", name: "VOLVO", models: ["FH16", "FMX"] },
+          { id: "2", name: "SCANIA", models: ["G410", "R450"] },
+          { id: "3", name: "HONDA", models: ["NL 150"] },
+        ],
+      };
+    } else {
+      return {
+        companyName: "",
+        companyRuc: "",
+        companyAddress: "",
+        exchangeRateUSD: 3.75,
         criticalWearLimit: 3.0,
         defaultInitialDepth: 12.0,
         alertEmail: "",
-        brands: [], // IMPORTANTE
-        positions: [
-          // Sugerencia: pon las básicas por defecto
-          "FRONT_LEFT",
-          "FRONT_RIGHT",
-          "REAR_LEFT_OUTER",
-          "REAR_LEFT_INNER",
-          "REAR_RIGHT_INNER",
-          "REAR_RIGHT_OUTER",
+        tireBrands: [
+          { id: "1", name: "MICHELIN", models: ["X MULTI Z", "X LINE ENERGY"] },
+          { id: "2", name: "BRIDGESTONE", models: ["R249", "M729"] },
+        ],
+        vehicleBrands: [
+          { id: "1", name: "VOLVO", models: ["FH16", "FMX"] },
+          { id: "2", name: "SCANIA", models: ["G410", "R450"] },
+          { id: "3", name: "HONDA", models: ["NL 150"] },
         ],
       };
     }
@@ -76,7 +80,13 @@ export const getGlobalSettings = async (): Promise<GlobalSettings> => {
 export const updateGlobalSettings = async (settings: GlobalSettings) => {
   try {
     const docRef = doc(db, "settings", SETTINGS_ID);
-    await setDoc(docRef, settings, { merge: true });
+    // Eliminamos el campo 'brands' antiguo antes de guardar para limpiar Firebase
+    const dataToSave = { ...settings };
+    if ("brands" in dataToSave) {
+      delete (dataToSave as any).brands;
+    }
+
+    await setDoc(docRef, dataToSave, { merge: true });
     return { success: true };
   } catch (error) {
     console.error("Error al actualizar configuración:", error);

@@ -11,8 +11,9 @@ import {
   where,
   orderBy,
   getDoc,
+  writeBatch,
 } from "firebase/firestore";
-import { Tire, TirePosition, TireStatus } from "@/types/tire";
+import { Tire, TireStatus } from "@/types/tire";
 
 export const recordInspection = async (
   tireId: string,
@@ -52,6 +53,56 @@ export const recordInspection = async (
   }
 };
 
+export const recordMassInspection = async (
+  truckId: string,
+  driverId: string,
+  currentOdometer: number,
+  inspections: {
+    tireId: string;
+    newTreadDepth: number;
+    condition: string;
+    notes: string;
+  }[],
+) => {
+  try {
+    const batch = writeBatch(db);
+
+    // 1. Actualizar el odómetro del camión
+    const truckRef = doc(db, "trucks", truckId);
+    batch.update(truckRef, { currentOdometer });
+
+    // 2. Procesar cada llanta inspeccionada
+    inspections.forEach((insp) => {
+      // Actualizar la llanta
+      const tireRef = doc(db, "tires", insp.tireId);
+      batch.update(tireRef, {
+        currentTreadDepth: insp.newTreadDepth,
+        lastInspectionDate: serverTimestamp(),
+      });
+
+      // Crear el registro de inspección en el historial
+      const newInspectionRef = doc(collection(db, "inspections"));
+      batch.set(newInspectionRef, {
+        tireId: insp.tireId,
+        truckId,
+        driverId,
+        newTreadDepth: insp.newTreadDepth,
+        condition: insp.condition, // "NORMAL" o "ANORMAL"
+        currentOdometer,
+        notes: insp.notes,
+        date: serverTimestamp(),
+      });
+    });
+
+    // Ejecutar todo de una sola vez
+    await batch.commit();
+    return { success: true };
+  } catch (error) {
+    console.error("Error en inspección masiva:", error);
+    throw new Error("No se pudo guardar la inspección masiva");
+  }
+};
+
 export const getInventory = async (): Promise<Tire[]> => {
   try {
     const tiresRef = collection(db, "tires");
@@ -73,26 +124,20 @@ export const addTire = async (data: {
   serialNumber: string;
   brand: string;
   model: string;
+  size: string;
   initialTreadDepth: number;
-  price: number; // Ya lo estabas recibiendo aquí
+  currentTreadDepth: number;
+  price: number;
+  currency: "PEN" | "USD";
+  warehouseId: string; // <-- 👇 ¡AQUÍ ESTÁ LA CORRECCIÓN!
 }) => {
   try {
-    const tiresRef = collection(db, "tires");
-    const newTire = {
-      serialNumber: data.serialNumber,
-      brand: data.brand,
-      model: data.model,
-      currentTreadDepth: data.initialTreadDepth,
-      price: data.price, // <-- ¡ESTA ES LA LÍNEA QUE FALTABA!
+    const docRef = await addDoc(collection(db, "tires"), {
+      ...data,
       status: "AVAILABLE",
-      truckId: null,
-      position: null,
-      lastInspectionDate: serverTimestamp(),
       createdAt: serverTimestamp(),
-    };
-
-    await addDoc(tiresRef, newTire);
-    return { success: true };
+    });
+    return { success: true, id: docRef.id };
   } catch (error) {
     console.error("Error al añadir neumático:", error);
     throw new Error("No se pudo registrar el neumático.");
@@ -131,7 +176,6 @@ export const getAvailableTires = async (): Promise<Tire[]> => {
   }
 };
 
-// Asegúrate de que tu función reciba y guarde el initialOdometer
 export const assignTireToTruck = async (
   tireId: string,
   truckId: string,
@@ -190,5 +234,67 @@ export const getTireHistory = async (tireId: string) => {
   } catch (error) {
     console.error("Error al obtener el historial:", error);
     return [];
+  }
+};
+
+// src/services/tireService.ts
+export const unmountTire = async (
+  tireId: string,
+  warehouseId: string,
+  userId: string,
+  currentOdometer: number,
+  currentTreadDepth: number,
+  notes: string,
+) => {
+  try {
+    const tireRef = doc(db, "tires", tireId);
+
+    // 1. Actualizamos la llanta
+    await updateDoc(tireRef, {
+      status: "AVAILABLE",
+      truckId: null,
+      position: null,
+      warehouseId: warehouseId,
+      currentTreadDepth: currentTreadDepth,
+    });
+
+    // 2. Guardamos el historial del desmontaje
+    await addDoc(collection(db, "tire_history"), {
+      tireId,
+      truckId: "DESMONTADO",
+      driverId: userId,
+      date: serverTimestamp(),
+      newTreadDepth: currentTreadDepth,
+      currentOdometer: currentOdometer,
+      notes: notes,
+      type: "UNMOUNT",
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error al desmontar llanta:", error);
+    throw new Error("No se pudo registrar el desmontaje.");
+  }
+};
+
+export const updateTire = async (id: string, data: Partial<Tire>) => {
+  try {
+    const tireRef = doc(db, "tires", id);
+    await updateDoc(tireRef, data);
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar neumático:", error);
+    throw new Error("No se pudo actualizar la información del neumático.");
+  }
+};
+
+export const updateTireStatus = async (id: string, status: Tire["status"]) => {
+  try {
+    const tireRef = doc(db, "tires", id);
+    await updateDoc(tireRef, { status });
+    return { success: true };
+  } catch (error) {
+    console.error("Error al actualizar estado del neumático:", error);
+    throw new Error("No se pudo dar de baja el neumático.");
   }
 };

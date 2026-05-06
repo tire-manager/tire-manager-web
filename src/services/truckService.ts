@@ -30,13 +30,17 @@ export const getTrucks = async (): Promise<Truck[]> => {
 export const addTruck = async (data: Omit<Truck, "id" | "createdAt">) => {
   try {
     const trucksRef = collection(db, "trucks");
-    await addDoc(trucksRef, {
+
+    // Guardamos la referencia al documento recién creado
+    const docRef = await addDoc(trucksRef, {
       ...data,
       createdAt: serverTimestamp(),
     });
-    return { success: true };
+
+    // ¡ESTA ES LA CLAVE! Devolvemos el ID generado por Firebase
+    return { success: true, id: docRef.id };
   } catch (error) {
-    console.error("Error al registrar camión:", error);
+    console.error("Error al añadir camión:", error);
     throw new Error("No se pudo registrar el camión.");
   }
 };
@@ -56,7 +60,6 @@ export const getTruckById = async (truckId: string): Promise<Truck | null> => {
   }
 };
 
-// Función auxiliar para actualizar el estado o asignar un chofer
 export const updateTruck = async (truckId: string, data: Partial<Truck>) => {
   try {
     const docRef = doc(db, "trucks", truckId);
@@ -70,30 +73,33 @@ export const updateTruck = async (truckId: string, data: Partial<Truck>) => {
 
 export const assignDriverToTruck = async (
   truckId: string,
-  newDriverId: string,
-  oldDriverId?: string | null,
+  newDriverId: string | null,
+  oldDriverId: string | null = null,
 ) => {
   try {
     const batch = writeBatch(db);
 
-    // 1. Actualizamos el camión
+    // 1. Actualizamos el documento del camión
     const truckRef = doc(db, "trucks", truckId);
     batch.update(truckRef, { assignedDriverId: newDriverId });
 
-    // 2. Actualizamos el perfil del nuevo chofer
-    const newDriverRef = doc(db, "users", newDriverId);
-    batch.update(newDriverRef, { truckId: truckId });
+    // 2. Si hay un chofer nuevo, le asignamos este camión en su perfil
+    if (newDriverId) {
+      const newDriverRef = doc(db, "users", newDriverId);
+      batch.update(newDriverRef, { truckId: truckId });
+    }
 
-    // 3. Si había un chofer anterior, le quitamos el camión
-    if (oldDriverId) {
+    // 3. Si había un chofer anterior, lo liberamos quitándole el camión
+    if (oldDriverId && oldDriverId !== newDriverId) {
       const oldDriverRef = doc(db, "users", oldDriverId);
       batch.update(oldDriverRef, { truckId: null });
     }
 
-    await batch.commit(); // Ejecutamos todo al mismo tiempo
+    // Ejecutamos todos los cambios al mismo tiempo
+    await batch.commit();
     return { success: true };
   } catch (error) {
-    console.error("Error en la asignación de chofer:", error);
-    throw new Error("No se pudo completar la asignación.");
+    console.error("Error al sincronizar asignación de chofer:", error);
+    throw new Error("No se pudo asignar el chofer.");
   }
 };

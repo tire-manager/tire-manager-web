@@ -1,26 +1,25 @@
 // src/types/tire.ts
 export type TireStatus = "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "DISCARDED";
 
-export type TirePosition =
-  | "FRONT_LEFT"
-  | "FRONT_RIGHT"
-  | "REAR_LEFT_OUTER"
-  | "REAR_LEFT_INNER"
-  | "REAR_RIGHT_INNER"
-  | "REAR_RIGHT_OUTER";
-
 export interface Tire {
   id: string;
   serialNumber: string;
   brand: string;
   model: string;
-  currentTreadDepth: number; // en mm
+  currentTreadDepth: number;
   status: TireStatus;
-  truckId?: string;
-  position?: TirePosition;
-  lastInspectionDate: number;
-  price?: number; // Costo de compra de la llanta
+  truckId: string | null;
+  position: string | null;
+  lastInspectionDate: any;
+  createdAt: any;
+
+  // Campos financieros y logísticos
+  price?: number;
+  currency?: "PEN" | "USD";
   initialOdometer?: number;
+  warehouse?: string;
+  size?: string; // Ej: "11R22.5"
+  warehouseId?: string;
 }
 
 export interface InspectionLog {

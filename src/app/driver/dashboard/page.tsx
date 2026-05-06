@@ -1,127 +1,137 @@
-// Copiar y pegar en src/app/driver/dashboard/page.tsx
 "use client";
 import React, { useEffect, useState } from "react";
-import {
-  Truck,
-  AlertTriangle,
-  Ruler,
-  Activity,
-  CheckCircle,
-  Save,
-  X,
-} from "lucide-react";
+import { Truck, AlertTriangle, Save, Activity, Gauge } from "lucide-react";
 import { auth } from "@/lib/firebase/clientApp";
 import { onAuthStateChanged } from "firebase/auth";
 import { getUserProfile } from "@/services/userService";
 import { getTruckById } from "@/services/truckService";
-import { getInventory, recordInspection } from "@/services/tireService";
+import { getInventory, recordMassInspection } from "@/services/tireService";
 import { UserProfile } from "@/types/user";
 import { Truck as TruckType } from "@/types/truck";
 import { Tire } from "@/types/tire";
 import toast from "react-hot-toast";
+
+// Interfaz para controlar el formulario dinámico
+type MassInspectionForm = {
+  [tireId: string]: {
+    depth: string;
+    condition: "NORMAL" | "ANORMAL";
+    notes: string;
+  };
+};
 
 export default function DriverDashboard() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [truck, setTruck] = useState<TruckType | null>(null);
   const [tires, setTires] = useState<Tire[]>([]);
   const [loading, setLoading] = useState(true);
-
-  // Estados para el Modal de Inspección
-  const [selectedTire, setSelectedTire] = useState<Tire | null>(null);
-  const [formData, setFormData] = useState({
-    depth: "",
-    odometer: "",
-    notes: "",
-  });
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        const profile = await getUserProfile(firebaseUser.uid);
-        setUser(profile);
+  // Estados del formulario masivo
+  const [truckOdometer, setTruckOdometer] = useState("");
+  const [inspectionData, setInspectionData] = useState<MassInspectionForm>({});
 
-        if (profile?.truckId) {
-          const truckData = await getTruckById(profile.truckId);
-          setTruck(truckData);
+  const loadDriverData = async (uid: string) => {
+    try {
+      const profile = await getUserProfile(uid);
+      setUser(profile);
 
-          if (truckData) {
-            // Traemos todos los neumáticos y filtramos los de este camión
-            const allTires = await getInventory();
-            setTires(allTires.filter((t) => t.truckId === profile.truckId));
+      if (profile?.truckId) {
+        const truckData = await getTruckById(profile.truckId);
+        setTruck(truckData);
 
-            // Pre-llenar el odómetro si el camión ya tiene uno registrado
-            if (truckData.currentOdometer) {
-              setFormData((prev) => ({
-                ...prev,
-                odometer: truckData.currentOdometer!.toString(),
-              }));
-            }
-          }
+        if (truckData) {
+          if (truckData.currentOdometer)
+            setTruckOdometer(truckData.currentOdometer.toString());
+
+          const allTires = await getInventory();
+          const assignedTires = allTires.filter(
+            (t) => t.truckId === profile.truckId && t.status === "IN_USE",
+          );
+
+          // Ordenar por posición para que la lista tenga sentido lógico
+          assignedTires.sort((a, b) => Number(a.position) - Number(b.position));
+          setTires(assignedTires);
+
+          // Inicializar el formulario masivo con los valores actuales de cada llanta
+          const initialFormData: MassInspectionForm = {};
+          assignedTires.forEach((t) => {
+            initialFormData[t.id] = {
+              depth: t.currentTreadDepth.toString(),
+              condition: "NORMAL",
+              notes: "",
+            };
+          });
+          setInspectionData(initialFormData);
         }
       }
+    } catch (error) {
+      console.error(error);
+    } finally {
       setLoading(false);
-    });
+    }
+  };
 
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) loadDriverData(firebaseUser.uid);
+      else setLoading(false);
+    });
     return () => unsubscribe();
   }, []);
 
-  const handleInspectClick = (tire: Tire) => {
-    setSelectedTire(tire);
-    setFormData((prev) => ({
+  const handleInputChange = (tireId: string, field: string, value: string) => {
+    setInspectionData((prev) => ({
       ...prev,
-      depth: tire.currentTreadDepth.toString(),
-      notes: "",
+      [tireId]: { ...prev[tireId], [field]: value },
     }));
   };
 
-  const handleSubmitInspection = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !truck || !selectedTire) return;
+    if (!user || !truck) return;
 
-    const newDepth = parseFloat(formData.depth);
-    const newOdometer = parseFloat(formData.odometer);
-
-    // Validaciones básicas
-    if (newDepth > selectedTire.currentTreadDepth) {
-      toast.error("El desgaste nuevo no puede ser mayor al anterior.");
-      return;
-    }
+    const newOdometer = parseFloat(truckOdometer);
     if (truck.currentOdometer && newOdometer < truck.currentOdometer) {
       toast.error(
-        "El kilometraje actual no puede ser menor al último registrado del camión.",
+        "El kilometraje no puede ser menor al registrado anteriormente.",
       );
       return;
     }
+
+    // Preparar el array de datos para enviarlo al Firebase Batch
+    const inspectionsArray = tires.map((tire) => {
+      const data = inspectionData[tire.id];
+      const newDepth = parseFloat(data.depth);
+
+      if (newDepth > tire.currentTreadDepth) {
+        throw new Error(
+          `Error en posición ${tire.position}: El desgaste nuevo no puede ser mayor al anterior.`,
+        );
+      }
+
+      return {
+        tireId: tire.id,
+        newTreadDepth: newDepth,
+        condition: data.condition,
+        notes: data.notes,
+      };
+    });
 
     setSaving(true);
     try {
       await toast.promise(
-        recordInspection(
-          selectedTire.id,
-          truck.id,
-          user.uid,
-          newDepth,
-          newOdometer,
-          formData.notes,
-        ),
+        recordMassInspection(truck.id, user.uid, newOdometer, inspectionsArray),
         {
-          loading: "Registrando inspección...",
-          success: "¡Inspección guardada correctamente!",
-          error: "Error al guardar. Intenta de nuevo.",
+          loading: "Guardando inspección masiva...",
+          success: "¡Todas las inspecciones guardadas!",
+          error: "Hubo un error al guardar",
         },
       );
-
-      // Actualizar la vista local sin recargar la página
-      setTires(
-        tires.map((t) =>
-          t.id === selectedTire.id ? { ...t, currentTreadDepth: newDepth } : t,
-        ),
-      );
-      setTruck({ ...truck, currentOdometer: newOdometer });
-      setSelectedTire(null);
-    } catch (error) {
-      console.error(error);
+      // Recargar datos para ver los cambios actualizados
+      await loadDriverData(user.uid);
+    } catch (error: any) {
+      toast.error(error.message || "Error de validación");
     } finally {
       setSaving(false);
     }
@@ -129,7 +139,9 @@ export default function DriverDashboard() {
 
   if (loading)
     return (
-      <div className="p-8 text-center text-slate-500">Cargando tu panel...</div>
+      <div className="p-8 text-center font-bold text-slate-500">
+        Cargando tu panel...
+      </div>
     );
 
   if (!user?.truckId || !truck) {
@@ -140,183 +152,142 @@ export default function DriverDashboard() {
           Sin vehículo asignado
         </h2>
         <p className="text-amber-700 text-sm">
-          Actualmente no tienes un camión asignado en el sistema. Contacta al
-          administrador.
+          Contacta al administrador para que te asigne una unidad.
         </p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      {/* Resumen del Camión */}
-      <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-lg flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div className="flex items-center gap-4">
-          <div className="bg-blue-500/20 p-3 rounded-xl">
-            <Truck className="w-8 h-8 text-blue-400" />
-          </div>
-          <div>
-            <p className="text-slate-400 text-sm uppercase tracking-widest font-bold">
-              Unidad Asignada
-            </p>
-            <h1 className="text-3xl font-black">{truck.licensePlate}</h1>
-          </div>
-        </div>
-        <div className="bg-slate-800 px-4 py-3 rounded-xl border border-slate-700 text-right w-full sm:w-auto">
-          <p className="text-slate-400 text-xs uppercase font-bold">
-            Odómetro Actual
-          </p>
-          <p className="text-xl font-mono font-bold text-emerald-400">
-            {truck.currentOdometer
-              ? `${truck.currentOdometer.toLocaleString()} KM`
-              : "No registrado"}
-          </p>
-        </div>
+    <div className="max-w-4xl mx-auto space-y-6 pb-20">
+      <div className="bg-slate-900 text-white rounded-2xl p-6 shadow-lg">
+        <h1 className="text-sm font-bold text-slate-400 uppercase tracking-widest mb-1 flex items-center gap-2">
+          <Truck className="w-4 h-4" /> Inspección de Unidad
+        </h1>
+        <p className="text-3xl font-black">{truck.licensePlate}</p>
       </div>
 
-      {/* Lista de Neumáticos */}
-      <div>
-        <h2 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
-          <Activity className="w-5 h-5 text-blue-600" />
-          Neumáticos a Inspeccionar ({tires.length})
-        </h2>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        {/* Kilometraje General */}
+        <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200">
+          <label className="block text-sm font-black text-slate-800 mb-2 flex items-center gap-2">
+            <Gauge className="w-5 h-5 text-blue-600" /> Kilómetros de la unidad
+          </label>
+          <input
+            type="number"
+            required
+            min={truck.currentOdometer || 0}
+            value={truckOdometer}
+            onChange={(e) => setTruckOdometer(e.target.value)}
+            className="w-full sm:w-1/2 p-4 bg-slate-50 border border-slate-200 rounded-xl font-mono text-xl font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+            placeholder="Ej: 150000"
+          />
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {tires.map((tire) => (
-            <div
-              key={tire.id}
-              className="bg-white border border-slate-200 p-5 rounded-2xl shadow-sm flex flex-col justify-between"
-            >
-              <div className="flex justify-between items-start mb-4">
-                <div>
-                  <p className="text-xs text-slate-400 font-bold uppercase">
-                    {tire.position?.replace(/_/g, " ")}
-                  </p>
-                  <p className="font-black text-slate-800 text-lg">
-                    {tire.serialNumber}
-                  </p>
-                  <p className="text-sm text-slate-500">
-                    {tire.brand} {tire.model}
-                  </p>
+        {/* Lista de Llantas (Diseño Mobile-First) */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+          <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-blue-600" />
+            <h2 className="font-bold text-slate-800">Detalle por Posición</h2>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {tires.map((tire) => (
+              <div
+                key={tire.id}
+                className="p-4 sm:p-6 grid grid-cols-1 md:grid-cols-12 gap-4 items-center hover:bg-slate-50/50 transition-colors"
+              >
+                {/* Info de la llanta */}
+                <div className="md:col-span-3 flex items-center gap-4">
+                  <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center font-black text-slate-700 shadow-inner">
+                    {tire.position}
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-900">
+                      {tire.serialNumber}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      Última: {tire.currentTreadDepth}mm
+                    </p>
+                  </div>
                 </div>
-                <div className="bg-slate-100 px-3 py-1 rounded-lg text-center">
-                  <p className="text-[10px] text-slate-500 font-bold uppercase">
+
+                {/* Input Profundidad */}
+                <div className="md:col-span-3">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1 md:hidden">
+                    Profundidad (mm)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    required
+                    max={tire.currentTreadDepth}
+                    value={inspectionData[tire.id]?.depth || ""}
+                    onChange={(e) =>
+                      handleInputChange(tire.id, "depth", e.target.value)
+                    }
+                    className="w-full p-3 bg-white border border-slate-300 rounded-xl font-bold focus:ring-2 focus:ring-blue-500 outline-none text-center"
+                  />
+                </div>
+
+                {/* Select Desgaste */}
+                <div className="md:col-span-3">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1 md:hidden">
                     Desgaste
-                  </p>
-                  <p
-                    className={`font-black ${tire.currentTreadDepth <= 3 ? "text-red-600" : "text-blue-600"}`}
+                  </label>
+                  <select
+                    value={inspectionData[tire.id]?.condition || "NORMAL"}
+                    onChange={(e) =>
+                      handleInputChange(tire.id, "condition", e.target.value)
+                    }
+                    className={`w-full p-3 rounded-xl font-bold outline-none border focus:ring-2 focus:ring-blue-500 text-center cursor-pointer ${
+                      inspectionData[tire.id]?.condition === "NORMAL"
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-red-50 text-red-700 border-red-200"
+                    }`}
                   >
-                    {tire.currentTreadDepth} mm
-                  </p>
+                    <option value="NORMAL">NORMAL</option>
+                    <option value="ANORMAL">ANORMAL</option>
+                  </select>
+                </div>
+
+                {/* Input Observaciones */}
+                <div className="md:col-span-3">
+                  <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1 md:hidden">
+                    Observaciones
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Opcional..."
+                    value={inspectionData[tire.id]?.notes || ""}
+                    onChange={(e) =>
+                      handleInputChange(tire.id, "notes", e.target.value)
+                    }
+                    className="w-full p-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-sm text-slate-600"
+                  />
                 </div>
               </div>
-
-              <button
-                onClick={() => handleInspectClick(tire)}
-                className="w-full py-2.5 bg-blue-50 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors flex justify-center items-center gap-2"
-              >
-                <Ruler className="w-4 h-4" /> Registrar Desgaste
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Modal de Inspección */}
-      {selectedTire && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in slide-in-from-bottom-10 sm:zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100">
-              <div>
-                <h3 className="font-bold text-lg text-slate-800">
-                  Inspección de Neumático
-                </h3>
-                <p className="text-sm text-slate-500 font-mono">
-                  {selectedTire.serialNumber} -{" "}
-                  {selectedTire.position?.replace(/_/g, " ")}
-                </p>
-              </div>
-              <button
-                onClick={() => setSelectedTire(null)}
-                className="text-slate-400 hover:text-slate-600 bg-slate-100 p-2 rounded-full"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleSubmitInspection} className="p-6 space-y-5">
-              {/* Odómetro del Camión */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">
-                  Kilometraje Actual del Camión
-                </label>
-                <input
-                  type="number"
-                  required
-                  value={formData.odometer}
-                  onChange={(e) =>
-                    setFormData({ ...formData, odometer: e.target.value })
-                  }
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                  placeholder="Ej: 150000"
-                />
-              </div>
-
-              {/* Milímetros de Desgaste */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">
-                  Profundidad Actual (mm)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  required
-                  max={selectedTire.currentTreadDepth} // No puede subir el milimetraje
-                  value={formData.depth}
-                  onChange={(e) =>
-                    setFormData({ ...formData, depth: e.target.value })
-                  }
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl font-bold focus:ring-2 focus:ring-blue-500 outline-none"
-                />
-                <p className="text-xs text-slate-500 mt-2">
-                  Última medición registrada: {selectedTire.currentTreadDepth}mm
-                </p>
-              </div>
-
-              {/* Observaciones */}
-              <div>
-                <label className="block text-sm font-bold text-slate-700 mb-1">
-                  Observaciones (Opcional)
-                </label>
-                <textarea
-                  rows={2}
-                  value={formData.notes}
-                  onChange={(e) =>
-                    setFormData({ ...formData, notes: e.target.value })
-                  }
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none resize-none text-sm"
-                  placeholder="Ej: Desgaste irregular, corte lateral..."
-                />
-              </div>
-
-              {/* Botón de Guardar */}
-              <button
-                type="submit"
-                disabled={saving}
-                className="w-full py-3.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-all shadow-md flex justify-center items-center gap-2 disabled:opacity-50"
-              >
-                {saving ? (
-                  "Guardando..."
-                ) : (
-                  <>
-                    <Save className="w-5 h-5" /> Confirmar Inspección
-                  </>
-                )}
-              </button>
-            </form>
+            ))}
           </div>
         </div>
-      )}
+
+        {/* Botón Flotante/Fijo Guardar */}
+        <div className="sticky bottom-4 z-10">
+          <button
+            type="submit"
+            disabled={saving || tires.length === 0}
+            className="w-full py-4 bg-blue-600 text-white font-black rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/30 flex justify-center items-center gap-2 disabled:opacity-50 text-lg"
+          >
+            {saving ? (
+              "Procesando..."
+            ) : (
+              <>
+                <Save className="w-6 h-6" /> Guardar Inspección Completa
+              </>
+            )}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }
