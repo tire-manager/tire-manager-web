@@ -209,43 +209,59 @@ export default function DashboardPage() {
                       <th className="p-4 text-right">Acción</th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-slate-100">
-                    {criticalTires.slice(0, 5).map((tire) => (
-                      <tr
-                        key={tire.id}
-                        className="hover:bg-red-50/30 transition-colors"
-                      >
-                        <td className="p-4">
-                          <Link
-                            href={`/admin/inventory/${tire.id}`}
-                            className="font-bold text-blue-600 hover:underline"
-                          >
-                            {tire.serialNumber}
-                          </Link>
-                          <p className="text-xs text-slate-500 font-medium uppercase">
-                            {tire.brand}
-                          </p>
-                        </td>
-                        <td className="p-4 font-black text-slate-700 uppercase">
-                          {tire.truckId}
-                        </td>
-                        <td className="p-4">
-                          <span
-                            className={`font-mono font-black px-2 py-1 rounded-lg ${tire.currentTreadDepth <= 2 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}
-                          >
-                            {tire.currentTreadDepth} mm
-                          </span>
-                        </td>
-                        <td className="p-4 text-right">
-                          <Link
-                            href={`/admin/trucks/${tire.truckId}`}
-                            className="text-xs font-bold text-blue-600 hover:text-blue-800"
-                          >
-                            Ir al Camión →
-                          </Link>
-                        </td>
-                      </tr>
-                    ))}
+                    {criticalTires.slice(0, 5).map((tire) => {
+                      // BUSCAMOS EL CAMIÓN CORRESPONDIENTE PARA OBTENER LA PLACA
+                      const assignedTruck = trucks.find(
+                        (t) => t.id === tire.truckId,
+                      );
+                      const displayPlate = assignedTruck
+                        ? assignedTruck.licensePlate
+                        : "ID: " + tire.truckId;
+
+                      return (
+                        <tr
+                          key={tire.id}
+                          className="hover:bg-red-50/30 transition-colors"
+                        >
+                          <td className="p-4">
+                            <Link
+                              href={`/admin/inventory/${tire.id}`}
+                              className="font-bold text-blue-600 hover:underline"
+                            >
+                              {tire.serialNumber}
+                            </Link>
+                            <p className="text-xs text-slate-500 font-medium uppercase">
+                              {tire.brand}
+                            </p>
+                          </td>
+                          <td className="p-4">
+                            {/* AHORA MOSTRAMOS LA PLACA CON UN ESTILO MÁS LIMPIO */}
+                            <div className="flex items-center gap-2">
+                              <span className="font-black text-slate-700 uppercase bg-slate-100 px-2 py-1 rounded border border-slate-200">
+                                {displayPlate}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="p-4">
+                            <span
+                              className={`font-mono font-black px-2 py-1 rounded-lg ${tire.currentTreadDepth <= 2 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}
+                            >
+                              {tire.currentTreadDepth} mm
+                            </span>
+                          </td>
+                          <td className="p-4 text-right">
+                            <Link
+                              href={`/admin/trucks/${tire.truckId}`}
+                              className="text-xs font-bold text-blue-600 hover:text-blue-800"
+                            >
+                              Ir al Camión →
+                            </Link>
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

@@ -9,16 +9,21 @@ import {
   User,
   Truck,
   Download,
-  Gauge,
   Package,
-  DollarSign,
   Wrench,
   Archive,
   Activity,
+  LineChart,
+  TrendingDown,
 } from "lucide-react";
-import { getTireById, getTireHistory } from "@/services/tireService";
+// IMPORTAMOS LA NUEVA FUNCIÓN MAESTRA
+import {
+  getTireById,
+  getTireHistory,
+  getTireAdvancedStats,
+} from "@/services/tireService";
 import { getTruckById } from "@/services/truckService";
-import { getUsers } from "@/services/userService"; // <-- IMPORTAMOS USUARIOS
+import { getUsers } from "@/services/userService";
 import { Tire } from "@/types/tire";
 import { generateTireKardexPDF } from "@/lib/utils/exportPDF";
 
@@ -28,7 +33,7 @@ export default function TireKardexPage() {
   const [tire, setTire] = useState<Tire | null>(null);
   const [history, setHistory] = useState<any[]>([]);
   const [truckPlate, setTruckPlate] = useState<string>("");
-  const [userMap, setUserMap] = useState<Record<string, string>>({}); // <-- MAPA DE NOMBRES
+  const [userMap, setUserMap] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,23 +43,20 @@ export default function TireKardexPage() {
         const [tireData, historyData, allUsers] = await Promise.all([
           getTireById(params.id as string),
           getTireHistory(params.id as string),
-          getUsers(), // Cargamos todos los usuarios para el diccionario
+          getUsers(),
         ]);
 
         if (tireData) {
           setTire(tireData);
-          // Si está en uso, buscamos la placa
           if (tireData.truckId && tireData.status === "IN_USE") {
             const truckData = await getTruckById(tireData.truckId);
             if (truckData) setTruckPlate(truckData.licensePlate);
           }
         }
 
-        // Armamos el diccionario ID -> Nombre
         const uMap: Record<string, string> = {};
         allUsers.forEach((u) => (uMap[u.uid] = u.displayName));
         setUserMap(uMap);
-
         setHistory(historyData);
       } catch (e) {
         console.error("Error cargando Kardex", e);
@@ -77,6 +79,10 @@ export default function TireKardexPage() {
         Neumático no encontrado
       </div>
     );
+
+  // --- NUEVA MATEMÁTICA PREDICTIVA ---
+  const stats = getTireAdvancedStats(tire, history);
+  const moneda = tire.currency === "USD" ? "$" : "S/";
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
@@ -110,7 +116,7 @@ export default function TireKardexPage() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-        {/* COLUMNA IZQUIERDA: RESUMEN */}
+        {/* COLUMNA IZQUIERDA */}
         <div className="md:col-span-4 space-y-6">
           {/* Vida Útil */}
           <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm text-center relative overflow-hidden">
@@ -124,80 +130,100 @@ export default function TireKardexPage() {
             </div>
             <div className="w-full bg-slate-100 h-2.5 rounded-full overflow-hidden mb-2">
               <div
-                className={`h-full transition-all duration-1000 ${tire.currentTreadDepth < 4 ? "bg-red-500" : tire.currentTreadDepth < 7 ? "bg-amber-400" : "bg-emerald-500"}`}
+                className={`h-full transition-all duration-1000 ${tire.currentTreadDepth <= stats.limitMm ? "bg-red-500" : tire.currentTreadDepth < 7 ? "bg-amber-400" : "bg-emerald-500"}`}
                 style={{
                   width: `${Math.min((tire.currentTreadDepth / tire.initialTreadDepth) * 100, 100)}%`,
                 }}
               />
             </div>
+            {!stats.isRetreadable && (
+              <p className="text-[10px] font-black text-red-500 uppercase tracking-widest mt-3">
+                Límite de reencauche superado
+              </p>
+            )}
+          </div>
+
+          {/* NUEVO: PANEL DE ANALÍTICA PREDICTIVA */}
+          <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg border border-slate-800">
+            <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-5 flex items-center gap-2">
+              <LineChart className="w-4 h-4 text-blue-400" /> Analítica
+              Predictiva
+            </h3>
+
+            <div className="grid grid-cols-2 gap-3">
+              {/* CPK */}
+              <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                <p className="text-[9px] text-slate-400 uppercase font-bold mb-1">
+                  CPK
+                </p>
+                <div className="text-lg font-black text-emerald-400 font-mono">
+                  {stats.cpk > 0 ? `${moneda}${stats.cpk.toFixed(4)}` : "N/D"}
+                </div>
+              </div>
+
+              {/* Índice de Desgaste */}
+              <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                <p className="text-[9px] text-slate-400 uppercase font-bold mb-1 flex items-center gap-1">
+                  Tasa Desgaste{" "}
+                  <TrendingDown className="w-3 h-3 text-slate-500" />
+                </p>
+                <div className="text-lg font-black text-amber-400 font-mono">
+                  {stats.wearRate > 0 ? stats.wearRate.toFixed(2) : "0.00"}
+                  <span className="text-[9px] text-slate-500 ml-1">mm/1k</span>
+                </div>
+              </div>
+
+              {/* Vida Restante */}
+              <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                <p className="text-[9px] text-slate-400 uppercase font-bold mb-1">
+                  Proyección
+                </p>
+                <div className="text-lg font-black text-blue-400 font-mono">
+                  {stats.projectedKm > 0
+                    ? stats.projectedKm.toLocaleString()
+                    : "0"}
+                  <span className="text-[9px] text-slate-500 ml-1">KM</span>
+                </div>
+              </div>
+
+              {/* Valor Residual */}
+              <div className="bg-slate-800/60 p-3 rounded-xl border border-slate-700/50">
+                <p className="text-[9px] text-slate-400 uppercase font-bold mb-1">
+                  Valor Contable
+                </p>
+                <div className="text-lg font-black text-white font-mono">
+                  {moneda}
+                  {stats.residualValue.toFixed(2)}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-800/50 flex justify-between items-center">
+              <span className="text-[10px] text-slate-500 font-bold uppercase">
+                Recorrido Histórico
+              </span>
+              <span className="text-sm font-black text-slate-200 font-mono">
+                {stats.totalKm.toLocaleString()} KM
+              </span>
+            </div>
           </div>
 
           {/* Ubicación Actual */}
-          <div className="bg-slate-900 text-white p-6 rounded-2xl shadow-lg border border-slate-800">
+          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
             <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Truck className="w-4 h-4 text-blue-400" /> Ubicación
+              <Truck className="w-4 h-4 text-blue-600" /> Ubicación Operativa
             </h3>
             <div className="space-y-4">
               <div>
                 <p className="text-xs text-slate-400 uppercase font-bold tracking-tighter mb-1">
-                  Estado / Ubicación
+                  Estado
                 </p>
-                <p className="text-xl font-black text-white uppercase tracking-tight">
+                <p className="text-lg font-black text-slate-900 uppercase tracking-tight">
                   {tire.status === "AVAILABLE" && "En Almacén"}
                   {tire.status === "DISCARDED" && "Dada de Baja"}
                   {tire.status === "IN_USE" &&
                     `Camión ${truckPlate || "Asignado"}`}
                 </p>
-              </div>
-              {tire.status === "IN_USE" && (
-                <div className="pt-4 border-t border-white/10 grid grid-cols-2 gap-2">
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">
-                      Posición
-                    </p>
-                    <p className="text-sm font-black text-blue-400">
-                      {tire.position?.replace(/_/g, " ")}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="text-[10px] text-slate-500 font-bold uppercase">
-                      Km Instalación
-                    </p>
-                    <p className="text-sm font-black text-emerald-400">
-                      {tire.initialOdometer?.toLocaleString()} KM
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Ficha Técnica */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-              <Package className="w-4 h-4 text-emerald-600" /> Especificaciones
-            </h3>
-            <div className="space-y-3 text-sm">
-              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                <span className="text-slate-500 font-bold">Medida</span>
-                <span className="font-black text-slate-900 uppercase">
-                  {tire.size}
-                </span>
-              </div>
-              <div className="flex justify-between items-center pb-2 border-b border-slate-50">
-                <span className="text-slate-500 font-bold">
-                  Profundidad Inicial
-                </span>
-                <span className="font-black text-slate-900">
-                  {tire.initialTreadDepth} mm
-                </span>
-              </div>
-              <div className="flex justify-between items-center pt-2">
-                <span className="text-slate-500 font-bold">Costo Compra</span>
-                <span className="font-mono font-black text-emerald-700">
-                  {tire.currency === "USD" ? "$" : "S/"}{" "}
-                  {tire.price?.toFixed(2)}
-                </span>
               </div>
             </div>
           </div>
@@ -206,8 +232,8 @@ export default function TireKardexPage() {
         {/* COLUMNA DERECHA: HISTORIAL */}
         <div className="md:col-span-8 bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-sm">
           <h3 className="font-black text-xl text-slate-800 mb-8 flex items-center gap-2 pb-4 border-b border-slate-100">
-            <History className="w-6 h-6 text-blue-600" />
-            Línea de Tiempo Operativa
+            <History className="w-6 h-6 text-blue-600" /> Línea de Tiempo
+            Operativa
           </h3>
 
           <div className="relative space-y-8 before:absolute before:inset-0 before:ml-4 before:-translate-x-px before:h-full before:w-0.5 before:bg-slate-200">
@@ -221,11 +247,7 @@ export default function TireKardexPage() {
                   className="relative flex items-start gap-6 group"
                 >
                   <div
-                    className={`absolute left-0 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center z-10 transition-transform group-hover:scale-110 ${
-                      isUnmount
-                        ? "bg-amber-500 text-white"
-                        : "bg-blue-600 text-white"
-                    }`}
+                    className={`absolute left-0 w-8 h-8 rounded-full border-4 border-white flex items-center justify-center z-10 transition-transform group-hover:scale-110 ${isUnmount ? "bg-amber-500 text-white" : "bg-blue-600 text-white"}`}
                   >
                     {isUnmount ? (
                       <Archive className="w-3.5 h-3.5" />
@@ -238,11 +260,7 @@ export default function TireKardexPage() {
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span
-                          className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${
-                            isUnmount
-                              ? "bg-amber-50 text-amber-700 border-amber-200"
-                              : "bg-blue-50 text-blue-700 border-blue-200"
-                          }`}
+                          className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg border ${isUnmount ? "bg-amber-50 text-amber-700 border-amber-200" : "bg-blue-50 text-blue-700 border-blue-200"}`}
                         >
                           {isUnmount
                             ? "Desmontaje de Unidad"
@@ -274,7 +292,6 @@ export default function TireKardexPage() {
                         <User className="w-3.5 h-3.5 text-blue-400" />
                         Responsable:{" "}
                         <span className="text-slate-900 uppercase">
-                          {/* AQUÍ HACEMOS LA TRADUCCIÓN DEL ID AL NOMBRE REAL */}
                           {userMap[event.driverId] ||
                             "Administrador del Sistema"}
                         </span>
@@ -290,28 +307,6 @@ export default function TireKardexPage() {
                 </div>
               );
             })}
-
-            {/* EVENTO BASE: INGRESO */}
-            <div className="relative flex items-start gap-6 group">
-              <div className="absolute left-0 w-8 h-8 bg-emerald-500 rounded-full border-4 border-white flex items-center justify-center z-10 text-white">
-                <Package className="w-3.5 h-3.5" />
-              </div>
-              <div className="ml-12 flex-1">
-                <span className="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  Ingreso Inicial a Almacén
-                </span>
-                <time className="text-[10px] font-bold text-slate-400 flex items-center gap-1 mt-2">
-                  <Calendar className="w-3.5 h-3.5" />
-                  {tire.createdAt?.toDate
-                    ? tire.createdAt.toDate().toLocaleString()
-                    : "Registro Inicial"}
-                </time>
-                <div className="mt-3 p-4 bg-emerald-50/50 rounded-xl border border-emerald-100 text-sm text-emerald-800 font-medium">
-                  Neumático nuevo registrado con{" "}
-                  <strong>{tire.initialTreadDepth} mm</strong> de profundidad.
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       </div>

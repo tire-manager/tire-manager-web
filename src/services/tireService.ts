@@ -244,3 +244,95 @@ export const getTiresByTruckId = async (truckId: string): Promise<Tire[]> => {
     return [];
   }
 };
+
+// src/services/tireService.ts
+
+export const getTireAdvancedStats = (tire: any, history: any[]) => {
+  let totalKm = 0;
+  let mountOdo = 0;
+  let highestOdoInCycle = 0;
+  let isMounted = false;
+  let firstMountDate: Date | null = null;
+
+  const ascHistory = [...history].reverse();
+
+  for (const event of ascHistory) {
+    if (event.type === "MOUNT") {
+      const currentOdo = event.currentOdometer || 0;
+      mountOdo = currentOdo;
+      highestOdoInCycle = currentOdo;
+      isMounted = true;
+      if (!firstMountDate && event.date) firstMountDate = event.date;
+    } else if (event.type === "UNMOUNT") {
+      if (isMounted) {
+        const odo = event.currentOdometer || highestOdoInCycle;
+        if (odo > mountOdo) totalKm += odo - mountOdo;
+      }
+      isMounted = false;
+    } else if (event.type === "INSPECTION") {
+      if (isMounted) {
+        highestOdoInCycle = Math.max(
+          highestOdoInCycle,
+          event.currentOdometer || 0,
+        );
+      }
+    }
+  }
+
+  if (isMounted && highestOdoInCycle > mountOdo)
+    totalKm += highestOdoInCycle - mountOdo;
+
+  // --- 2. Variables de Desgaste ---
+  const mmGastados = tire.initialTreadDepth - tire.currentTreadDepth;
+  const LIMIT_MM = 4;
+  const price = tire.price || 0;
+
+  // --- 3. PASO 3: PROYECCIÓN POR CALENDARIO ---
+  let avgKmPerDay = 0;
+  let estimatedChangeDate: Date | null = null;
+
+  if (firstMountDate && totalKm > 0) {
+    const hoy = new Date();
+    const diasEnOperacion = Math.max(
+      1,
+      Math.floor(
+        (hoy.getTime() - firstMountDate.getTime()) / (1000 * 60 * 60 * 24),
+      ),
+    );
+    avgKmPerDay = totalKm / diasEnOperacion;
+  }
+
+  const wearRate = totalKm > 0 ? (mmGastados / totalKm) * 1000 : 0;
+  let projectedKm = 0;
+
+  if (mmGastados > 0 && totalKm > 0) {
+    const kmPerMm = totalKm / mmGastados;
+    projectedKm = Math.max(0, (tire.currentTreadDepth - LIMIT_MM) * kmPerMm);
+
+    if (avgKmPerDay > 0) {
+      const diasRestantes = projectedKm / avgKmPerDay;
+      estimatedChangeDate = new Date();
+      estimatedChangeDate.setDate(
+        estimatedChangeDate.getDate() + diasRestantes,
+      );
+    }
+  }
+
+  return {
+    totalKm,
+    cpk: price > 0 && totalKm > 0 ? price / totalKm : 0,
+    wearRate,
+    projectedKm: Math.round(projectedKm),
+    residualValue:
+      tire.initialTreadDepth > LIMIT_MM
+        ? price *
+          (Math.max(0, tire.currentTreadDepth - LIMIT_MM) /
+            (tire.initialTreadDepth - LIMIT_MM))
+        : 0,
+    avgKmPerDay: Math.round(avgKmPerDay),
+    estimatedChangeDate,
+    limitMm: LIMIT_MM,
+    // ¡AQUÍ ESTÁ LA LÍNEA QUE FALTABA!
+    isRetreadable: tire.currentTreadDepth >= LIMIT_MM,
+  };
+};
