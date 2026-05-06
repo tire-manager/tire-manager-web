@@ -1,6 +1,6 @@
 // src/app/admin/trucks/[id]/page.tsx
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -14,6 +14,8 @@ import {
   Archive,
   Edit,
   AlertCircle,
+  ChevronDown,
+  Download,
 } from "lucide-react";
 import { getTruckById } from "@/services/truckService";
 import {
@@ -26,6 +28,7 @@ import { Truck as TruckType } from "@/types/truck";
 import { Tire } from "@/types/tire";
 import TruckVisualizer from "@/components/trucks/TruckVisualizer";
 import { EditTruckModal } from "@/components/trucks/EditTruckModal";
+import { generateTruckTechnicalReportPDF } from "@/lib/utils/exportPDF"; // <-- IMPORTACIÓN DEL PDF
 import toast from "react-hot-toast";
 
 export default function TruckProfilePage() {
@@ -34,7 +37,8 @@ export default function TruckProfilePage() {
   const [truckTires, setTruckTires] = useState<Tire[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // ESTADOS PARA LOS MODALES
+  // ESTADOS PARA LOS MODALES Y MENÚS
+  const [isHeaderMenuOpen, setIsHeaderMenuOpen] = useState(false); // <-- ESTADO PARA EL DROPDOWN
   const [selectedPosition, setSelectedPosition] = useState<number | null>(null);
   const [selectedTire, setSelectedTire] = useState<Tire | null>(null);
 
@@ -139,7 +143,7 @@ export default function TruckProfilePage() {
         unmountTire(
           selectedTire.id,
           unmountData.warehouseId,
-          "ADMIN", // Aquí idealmente iría el ID del usuario logueado
+          "ADMIN",
           unmountData.currentOdometer,
           unmountData.currentTreadDepth,
           unmountData.reason,
@@ -192,7 +196,7 @@ export default function TruckProfilePage() {
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
-      {/* ENCABEZADO */}
+      {/* ENCABEZADO CON DROPDOWN */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div className="flex items-center gap-4">
           <Link
@@ -223,13 +227,51 @@ export default function TruckProfilePage() {
           </div>
         </div>
 
-        <button
-          onClick={() => setIsEditModalOpen(true)}
-          className="flex items-center gap-2 bg-white border border-slate-200 text-slate-700 px-4 py-2.5 rounded-xl font-bold hover:bg-slate-50 transition-colors shadow-sm text-sm"
-        >
-          <Edit className="w-4 h-4" />
-          Editar Unidad
-        </button>
+        {/* MENÚ DESPLEGABLE DE OPCIONES */}
+        <div className="relative">
+          <button
+            onClick={() => setIsHeaderMenuOpen(!isHeaderMenuOpen)}
+            className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl font-bold hover:bg-slate-800 transition-colors shadow-md text-sm"
+          >
+            Opciones
+            <ChevronDown
+              className={`w-4 h-4 transition-transform ${isHeaderMenuOpen ? "rotate-180" : ""}`}
+            />
+          </button>
+
+          {isHeaderMenuOpen && (
+            <>
+              {/* Overlay invisible para cerrar el menú al hacer clic afuera */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => setIsHeaderMenuOpen(false)}
+              ></div>
+
+              <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                <button
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    generateTruckTechnicalReportPDF(truck, truckTires);
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-2 border-b border-slate-100 transition-colors"
+                >
+                  <Download className="w-4 h-4" />
+                  Exportar Informe PDF
+                </button>
+                <button
+                  onClick={() => {
+                    setIsHeaderMenuOpen(false);
+                    setIsEditModalOpen(true);
+                  }}
+                  className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-2 transition-colors"
+                >
+                  <Edit className="w-4 h-4" />
+                  Editar Unidad
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </div>
 
       {/* TARJETAS DE RESUMEN */}
