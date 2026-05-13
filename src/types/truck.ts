@@ -6,7 +6,7 @@ export interface Truck {
   model: string;
   year: number;
   assignedDriverId: string | null; // UID del usuario con rol DRIVER
-  status: "ACTIVE" | "IN_MAINTENANCE" | "INACTIVE";
+  status: "ACTIVE" | "IN_MAINTENANCE" | "INACTIVE" | "DISCARDED";
   createdAt: number;
   currentOdometer?: number;
   // Actualizado con los 5 ejes exactos

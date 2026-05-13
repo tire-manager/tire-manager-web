@@ -1,9 +1,373 @@
 // src/lib/utils/exportPDF.ts
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Tire } from "@/types/tire";
 import { Truck } from "@/types/truck";
+import { Tire, TireHistory } from "@/types/tire";
 import { getTireAdvancedStats } from "@/services/tireService";
+
+// --- NUEVO: Función auxiliar para convertir imagen de URL a Base64 ---
+const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
+  const res = await fetch(imageUrl);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+};
+
+// --- AHORA ES ASYNC ---
+export const generateTruckTechnicalReportPDF = async (
+  truck: Truck,
+  tires: Tire[],
+  chartImage?: string,
+  tiresHistories: Record<string, any[]> = {},
+  chartData: any[] = [],
+  pastTires: Tire[] = [], // <-- RECIBIMOS LAS HISTÓRICAS
+) => {
+  const doc = new jsPDF("landscape");
+  const moneda = tires[0]?.currency === "USD" ? "$" : "S/";
+
+  // --- 1. ENCABEZADO ---
+  doc.setFillColor(30, 41, 59);
+  doc.rect(0, 0, 297, 30, "F");
+
+  doc.setFontSize(22);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold");
+  doc.text("INFORME TÉCNICO DE NEUMÁTICOS", 14, 20);
+
+  // --- 2. DATOS DE LA UNIDAD ---
+  doc.setFillColor(248, 250, 252);
+  doc.setDrawColor(226, 232, 240);
+  doc.roundedRect(14, 35, 269, 25, 2, 2, "FD");
+
+  doc.setFontSize(10);
+  doc.setTextColor(100);
+  doc.setFont("helvetica", "normal");
+  doc.text("DATOS DEL VEHÍCULO", 20, 42);
+
+  doc.setFontSize(14);
+  doc.setTextColor(15, 23, 42);
+  doc.setFont("helvetica", "bold");
+  doc.text(`PLACA: ${truck.licensePlate}`, 20, 52);
+  doc.text(`MODELO: ${truck.brand} ${truck.model || ""}`, 100, 52);
+  doc.text(
+    `ODO ACTUAL: ${truck.currentOdometer?.toLocaleString()} KM`,
+    190,
+    52,
+  );
+
+  // --- 3. GRÁFICA ---
+  if (chartImage) {
+    doc.setFontSize(12);
+    doc.text("CURVA DE DESGASTE", 14, 72);
+    doc.addImage(chartImage, "PNG", 14, 75, 180, 80);
+  }
+
+  // --- 4. RESUMEN FINANCIERO ---
+  const totalInversion = tires.reduce((acc, t) => acc + (t.price || 0), 0);
+  let sumCPK = 0;
+  let validTires = 0;
+
+  const tableData = tires.map((tire) => {
+    const history = tiresHistories[tire.id] || [];
+    const stats = getTireAdvancedStats(tire, history);
+
+    if (stats.cpk > 0) {
+      sumCPK += stats.cpk;
+      validTires++;
+    }
+
+    const pctDesgaste = (
+      ((tire.initialTreadDepth - tire.currentTreadDepth) /
+        tire.initialTreadDepth) *
+      100
+    ).toFixed(1);
+
+    return [
+      tire.position?.replace("POS_", "") || "N/A",
+      tire.serialNumber,
+      `${tire.brand} ${tire.model}`,
+      `${tire.currentTreadDepth} mm`,
+      `${pctDesgaste}%`,
+      stats.projectedKm > 0
+        ? `${stats.projectedKm.toLocaleString()} KM`
+        : "0 KM",
+      stats.estimatedChangeDate
+        ? stats.estimatedChangeDate.toLocaleDateString()
+        : "N/D",
+      `${moneda} ${stats.cpk.toFixed(4)}`,
+    ];
+  });
+
+  const cpkPromedio = validTires > 0 ? sumCPK / validTires : 0;
+
+  doc.setFillColor(15, 23, 42);
+  doc.roundedRect(205, 75, 78, 80, 2, 2, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.text("RESUMEN DE INVERSIÓN", 212, 85);
+
+  doc.setFontSize(9);
+  doc.setTextColor(148, 163, 184);
+  doc.text("Inversión Total Ejes Activos:", 212, 95);
+  doc.setFontSize(12);
+  doc.setTextColor(255, 255, 255);
+  doc.text(`${moneda} ${totalInversion.toLocaleString()}`, 212, 102);
+
+  doc.setFontSize(9);
+  doc.setTextColor(148, 163, 184);
+  doc.text("CPK Promedio (Flota Actual):", 212, 115);
+  doc.setFontSize(12);
+  doc.setTextColor(52, 211, 153);
+  doc.text(`${moneda} ${cpkPromedio.toFixed(4)} / KM`, 212, 122);
+
+  // --- 5. TABLA DE RESUMEN ---
+  autoTable(doc, {
+    startY: 160,
+    head: [
+      [
+        "POS",
+        "SERIE",
+        "MARCA/MODELO",
+        "REMANENTE",
+        "% DESG.",
+        "PROYECCIÓN",
+        "FECHA CAMBIO",
+        "CPK",
+      ],
+    ],
+    body: tableData,
+    theme: "grid",
+    headStyles: { fillColor: [30, 41, 59], fontSize: 8, halign: "center" },
+    bodyStyles: { fontSize: 8, halign: "center" },
+  });
+
+  // --- 6. TABLA DE CONTROLES ---
+  if (chartData.length > 0) {
+    doc.addPage();
+    doc.setFontSize(14);
+    doc.setTextColor(15, 23, 42);
+    doc.setFont("helvetica", "bold");
+    doc.text("TABLA DE CONTROLES (PROFUNDIDAD DE GRABADO)", 14, 20);
+
+    const headers = ["CONTROL", "FECHA", "ODÓMETRO (KM)"];
+    tires.forEach((t) => headers.push(`SERIE\n${t.serialNumber}`));
+
+    // NUEVO: Objeto para recordar la última medida conocida de cada llanta
+    const lastKnown: Record<string, number> = {};
+
+    const controlRows = chartData.map((point, index) => {
+      const row = [
+        index === 0 ? "MONTAJE" : `${index}ER CONTROL`,
+        point.date ? new Date(point.date).toLocaleDateString() : "N/D",
+        point.odometer.toLocaleString(),
+      ];
+
+      tires.forEach((t) => {
+        const mm = point[t.serialNumber];
+
+        if (mm !== undefined) {
+          // Si hay una medida explícita en este kilómetro, la guardamos en la memoria y la imprimimos
+          lastKnown[t.serialNumber] = mm;
+          row.push(`${mm.toFixed(1)}`);
+        } else {
+          // Si NO hay medida, pero la llanta ya había sido montada en este odómetro,
+          // arrastramos (copiamos) su último valor conocido en lugar de poner un guion
+          if (
+            point.odometer >= (t.initialOdometer || 0) &&
+            lastKnown[t.serialNumber] !== undefined
+          ) {
+            row.push(`${lastKnown[t.serialNumber].toFixed(1)}`);
+          } else {
+            // Si el odómetro es menor al de su instalación, significa que aún no existía en el camión
+            row.push("-");
+          }
+        }
+      });
+      return row;
+    });
+
+    autoTable(doc, {
+      startY: 30,
+      head: [headers],
+      body: controlRows,
+      theme: "striped",
+      headStyles: {
+        fillColor: [220, 38, 38],
+        textColor: 255,
+        fontSize: 8,
+        halign: "center",
+      },
+      bodyStyles: { fontSize: 8, halign: "center" },
+      didParseCell: (data) => {
+        if (data.section === "body" && data.column.index >= 3) {
+          // Reemplazamos los guiones vacíos por 0 para la validación lógica sin que rompa
+          const valText = data.cell.raw as string;
+          if (valText !== "-") {
+            const val = parseFloat(valText);
+            if (val <= 8 && val > 4)
+              data.cell.styles.fillColor = [253, 224, 71];
+            if (val <= 4) {
+              data.cell.styles.fillColor = [254, 226, 226];
+              data.cell.styles.textColor = [220, 38, 38];
+              data.cell.styles.fontStyle = "bold";
+            }
+          }
+        }
+      },
+    });
+  }
+
+  // --- 7. ANEXO DE EVIDENCIAS FOTOGRÁFICAS ---
+  // Buscamos todas las llantas retiradas de este camión que tengan fotos
+  const annexImages: {
+    serial: string;
+    date: string;
+    reason: string;
+    url: string;
+    depth: number;
+  }[] = [];
+
+  // Como `tires` solo trae las llantas "actuales", escaneamos TODO el historial que trajimos
+  // para ver qué llantas fueron desmontadas de este camión en el pasado y tienen foto
+  Object.keys(tiresHistories).forEach((tireId) => {
+    const events = tiresHistories[tireId];
+    events.forEach((ev) => {
+      if ((ev.type === "UNMOUNT" || ev.type === "REPAIR") && ev.imageUrl) {
+        // Encontramos la llanta en el inventario actual para sacar su serie (o la buscamos en el historial si es posible)
+        const matchedTire = tires.find((t) => t.id === tireId);
+        annexImages.push({
+          serial: matchedTire ? matchedTire.serialNumber : tireId.slice(0, 8),
+          date: ev.date ? new Date(ev.date).toLocaleDateString() : "N/D",
+          reason: ev.notes || "Retiro",
+          url: ev.imageUrl,
+          depth: ev.newTreadDepth || 0,
+        });
+      }
+    });
+  });
+
+  if (annexImages.length > 0) {
+    doc.addPage();
+    doc.setFillColor(30, 41, 59);
+    doc.rect(0, 0, 297, 30, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.text("ANEXO: EVIDENCIA DE RETIROS Y DAÑOS", 14, 20);
+
+    let xPos = 14;
+    let yPos = 40;
+
+    for (const imgData of annexImages) {
+      try {
+        const base64Img = await getBase64ImageFromUrl(imgData.url);
+
+        // Dibujamos una tarjeta estilo Polaroid para la foto
+        doc.setFillColor(248, 250, 252);
+        doc.setDrawColor(203, 213, 225);
+        doc.roundedRect(xPos, yPos, 85, 100, 2, 2, "FD");
+
+        // Textos descriptivos
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(10);
+        doc.setFont("helvetica", "bold");
+        doc.text(`Serie: ${imgData.serial}`, xPos + 5, yPos + 8);
+
+        doc.setFontSize(8);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(71, 85, 105);
+        doc.text(`Fecha: ${imgData.date}`, xPos + 5, yPos + 14);
+        doc.text(`Remanente: ${imgData.depth} mm`, xPos + 5, yPos + 19);
+
+        // Cortamos el motivo si es muy largo
+        const splitReason = doc.splitTextToSize(
+          `Motivo: ${imgData.reason}`,
+          75,
+        );
+        doc.text(splitReason, xPos + 5, yPos + 24);
+
+        // Imprimimos la imagen
+        doc.addImage(base64Img, "JPEG", xPos + 5, yPos + 35, 75, 60);
+
+        xPos += 90;
+
+        // Salto de línea o de página para las fotos
+        if (xPos > 250) {
+          xPos = 14;
+          yPos += 105;
+          if (yPos > 170) {
+            doc.addPage();
+            yPos = 20;
+          }
+        }
+      } catch (error) {
+        console.error("Error cargando imagen al PDF:", imgData.url);
+      }
+    }
+  }
+
+  // --- NUEVA PÁGINA: DATOS DE RETIRO ---
+  if (pastTires.length > 0) {
+    doc.addPage();
+    doc.setFillColor(220, 38, 38); // Rojo BOTO
+    doc.rect(0, 0, 297, 20, "F");
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(16);
+    doc.text("DATOS DEL RETIRO (HISTORIAL DE LA UNIDAD)", 14, 13);
+
+    const retiredData = pastTires.map((tire) => {
+      const history = tiresHistories[tire.id] || [];
+      // Buscamos el evento de UNMOUNT específico de este camión
+      const unmountEvent = history.find(
+        (h) => h.type === "UNMOUNT" && h.truckId === truck.id,
+      );
+      const mountEvent = history.find(
+        (h) => h.type === "MOUNT" && h.truckId === truck.id,
+      );
+
+      const kmsRecorridos =
+        (unmountEvent?.currentOdometer || 0) -
+        (mountEvent?.currentOdometer || 0);
+      const costoHr =
+        tire.price && kmsRecorridos > 0 ? tire.price / kmsRecorridos : 0;
+
+      return [
+        tire.serialNumber,
+        `${unmountEvent?.newTreadDepth || 0} mm`,
+        unmountEvent?.currentOdometer?.toLocaleString() || "N/D",
+        `${kmsRecorridos.toLocaleString()} KM`,
+        `$ ${costoHr.toFixed(4)}`,
+        unmountEvent?.notes || "N/D",
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 25,
+      head: [
+        [
+          "Nº IDENTIFICACIÓN",
+          "PROF. FINAL",
+          "ODO FINAL",
+          "KM RECORRIDOS",
+          "COSTO/KM",
+          "CAUSA DE RETIRO",
+        ],
+      ],
+      body: retiredData,
+      theme: "grid",
+      headStyles: {
+        fillColor: [241, 245, 249],
+        textColor: [15, 23, 42],
+        fontStyle: "bold",
+      },
+      columnStyles: { 5: { cellWidth: 80 } }, // Espacio para la causa de retiro
+    });
+  }
+
+  doc.save(`Reporte_Tecnico_${truck.licensePlate}.pdf`);
+};
 
 export const generateTireKardexPDF = (tire: any, history: any[]) => {
   const doc = new jsPDF();
@@ -146,161 +510,4 @@ export const generateTireKardexPDF = (tire: any, history: any[]) => {
   });
 
   doc.save(`Kardex_Avanzado_${tire.serialNumber}.pdf`);
-};
-
-export const generateTruckTechnicalReportPDF = (
-  truck: Truck,
-  tires: Tire[],
-) => {
-  const doc = new jsPDF("landscape"); // Horizontal para que quepan todos los datos financieros
-
-  // 1. TÍTULO Y CABECERA (Estilo Corporativo)
-  doc.setFontSize(20);
-  doc.setTextColor(15, 23, 42); // slate-900
-  doc.setFont("helvetica", "bold");
-  doc.text("INFORME TÉCNICO DE NEUMÁTICOS", 14, 22);
-
-  doc.setFontSize(10);
-  doc.setTextColor(100, 116, 139); // slate-500
-  doc.setFont("helvetica", "normal");
-  const fechaHora = new Date().toLocaleString("es-PE");
-  doc.text(`Generado el: ${fechaHora}`, 14, 30);
-  doc.text("Departamento Técnico de Flota - FlotaERP", 14, 35);
-
-  // 2. DATOS DEL CAMIÓN (Caja Gris)
-  doc.setFillColor(248, 250, 252); // slate-50
-  doc.setDrawColor(226, 232, 240); // slate-200
-  doc.roundedRect(14, 42, 269, 25, 3, 3, "FD");
-
-  doc.setFontSize(14);
-  doc.setTextColor(37, 99, 235); // blue-600
-  doc.setFont("helvetica", "bold");
-  doc.text(`UNIDAD: ${truck.licensePlate}`, 20, 52);
-
-  doc.setFontSize(10);
-  doc.setTextColor(71, 85, 105); // slate-600
-  doc.text(
-    `Odómetro Actual: ${truck.currentOdometer?.toLocaleString() || 0} KM`,
-    20,
-    60,
-  );
-
-  doc.text(`Marca/Modelo: ${truck.brand} ${truck.model || ""}`, 120, 52);
-  doc.text(
-    `Configuración: ${truck.axleConfig?.replace(/_/g, " ") || "N/A"}`,
-    120,
-    60,
-  );
-
-  doc.text(`Total Llantas: ${tires.length}`, 220, 52);
-  const criticas = tires.filter((t) => t.currentTreadDepth <= 4).length;
-  if (criticas > 0) {
-    doc.setTextColor(220, 38, 38); // red-600
-  }
-  doc.text(`Alertas Críticas: ${criticas}`, 220, 60);
-
-  // 3. PROCESAMIENTO DE DATOS (La Matemática)
-  const tableData = tires.map((tire) => {
-    const kmRecorridos =
-      (truck.currentOdometer || 0) - (tire.initialOdometer || 0);
-    const mmGastados = tire.initialTreadDepth - tire.currentTreadDepth;
-
-    // Porcentaje de desgaste
-    const pctDesgaste =
-      tire.initialTreadDepth > 0
-        ? ((mmGastados / tire.initialTreadDepth) * 100).toFixed(1)
-        : "0.0";
-
-    // Costo por Kilómetro (CPK) Actual
-    const cpk =
-      tire.price && kmRecorridos > 0
-        ? (tire.price / kmRecorridos).toFixed(4)
-        : "0.0000";
-
-    // Proyección de KM (Asumiendo que mueren a los 3mm)
-    let proyeccion = "N/D";
-    if (mmGastados > 0 && kmRecorridos > 0) {
-      const kmPorMm = kmRecorridos / mmGastados;
-      const mmUtilesTotales = tire.initialTreadDepth - 3; // Límite de 3mm
-      const kmProyectadosTotales = Math.round(kmPorMm * mmUtilesTotales);
-      proyeccion = kmProyectadosTotales.toLocaleString();
-    }
-
-    // Observación (Reglas de negocio)
-    let observacion = "ÓPTIMO";
-    if (tire.currentTreadDepth <= 4) observacion = "CAMBIO URGENTE";
-    else if (tire.currentTreadDepth <= 6) observacion = "PLANIFICAR RELEVO";
-
-    return [
-      tire.position?.replace("POS_", "") || "N/A", // Eje/Posición
-      tire.serialNumber,
-      `${tire.brand} ${tire.model}`,
-      `${kmRecorridos.toLocaleString()} KM`,
-      `${tire.currentTreadDepth} mm`,
-      `${pctDesgaste} %`,
-      proyeccion,
-      tire.currency === "USD" ? `$${cpk}` : `S/${cpk}`,
-      observacion,
-    ];
-  });
-
-  // 4. TABLA PRINCIPAL
-  autoTable(doc, {
-    startY: 75,
-    head: [
-      [
-        "POS",
-        "N° SERIE",
-        "MARCA / DISEÑO",
-        "KM RECORRIDOS",
-        "REMANENTE",
-        "% DESGASTE",
-        "KM PROYECTADO",
-        "CPK ACTUAL",
-        "OBSERVACIÓN",
-      ],
-    ],
-    body: tableData,
-    theme: "grid",
-    headStyles: {
-      fillColor: [30, 41, 59], // slate-800
-      textColor: 255,
-      fontSize: 8,
-      fontStyle: "bold",
-      halign: "center",
-    },
-    bodyStyles: {
-      fontSize: 8,
-      textColor: [51, 65, 85], // slate-700
-      halign: "center",
-    },
-    alternateRowStyles: {
-      fillColor: [248, 250, 252], // slate-50
-    },
-    didParseCell: function (data) {
-      // Pintar de rojo la celda si el remanente es bajo
-      if (data.section === "body" && data.column.index === 4) {
-        const mm = parseFloat(data.cell.raw as string);
-        if (mm <= 4) {
-          data.cell.styles.textColor = [220, 38, 38]; // Rojo
-          data.cell.styles.fontStyle = "bold";
-        }
-      }
-      // Pintar la columna de observación
-      if (data.section === "body" && data.column.index === 8) {
-        if (data.cell.raw === "CAMBIO URGENTE") {
-          data.cell.styles.textColor = [220, 38, 38];
-          data.cell.styles.fontStyle = "bold";
-        } else if (data.cell.raw === "PLANIFICAR RELEVO") {
-          data.cell.styles.textColor = [217, 119, 6]; // Ambar
-          data.cell.styles.fontStyle = "bold";
-        } else {
-          data.cell.styles.textColor = [5, 150, 105]; // Verde
-        }
-      }
-    },
-  });
-
-  // Descargar
-  doc.save(`Informe_Tecnico_${truck.licensePlate}.pdf`);
 };

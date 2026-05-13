@@ -30,6 +30,7 @@ export const EditTireModal: React.FC<EditTireModalProps> = ({
     size: "",
     price: 0,
     currency: "PEN" as "PEN" | "USD",
+    historicalKm: 0, // <-- NUEVO ESTADO
   });
 
   useEffect(() => {
@@ -45,6 +46,7 @@ export const EditTireModal: React.FC<EditTireModalProps> = ({
         size: tire.size || "",
         price: tire.price || 0,
         currency: tire.currency || "PEN",
+        historicalKm: tire.historicalKm || 0, // <-- CARGAMOS EL DATO PREVIO
       });
     }
   }, [tire, isOpen]);
@@ -63,6 +65,7 @@ export const EditTireModal: React.FC<EditTireModalProps> = ({
         size: formData.size.toUpperCase(),
         price: formData.price,
         currency: formData.currency,
+        historicalKm: formData.historicalKm, // <-- ACTUALIZAMOS EN FIRESTORE
       });
 
       toast.success("Información del neumático actualizada");
@@ -175,7 +178,8 @@ export const EditTireModal: React.FC<EditTireModalProps> = ({
               </select>
             </div>
 
-            <div className="col-span-2">
+            {/* SEPARAMOS MEDIDA Y KM PREVIOS AQUÍ */}
+            <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">
                 Medida
               </label>
@@ -188,6 +192,23 @@ export const EditTireModal: React.FC<EditTireModalProps> = ({
                 }
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-medium"
                 placeholder="Ej: 295/80R22.5"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-amber-700 mb-1">
+                KM Previos
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.historicalKm}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    historicalKm: parseInt(e.target.value) || 0,
+                  })
+                }
+                className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-bold text-amber-800"
               />
             </div>
           </div>

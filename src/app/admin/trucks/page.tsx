@@ -70,21 +70,31 @@ export default function TrucksPage() {
   );
 
   const getStatusBadge = (status: Truck["status"]) => {
-    const styles = {
+    // Aseguramos que todas las opciones posibles de 'status' tengan su estilo
+    const styles: Record<NonNullable<Truck["status"]>, string> = {
       ACTIVE: "bg-emerald-100 text-emerald-700 border-emerald-200",
       IN_MAINTENANCE: "bg-amber-100 text-amber-700 border-amber-200",
       INACTIVE: "bg-slate-100 text-slate-700 border-slate-200",
+      DISCARDED: "bg-red-100 text-red-700 border-red-200", // <-- SOLUCIÓN: Agregamos el faltante
     };
-    const labels = {
+
+    // Aseguramos que todas las opciones posibles tengan su etiqueta de texto
+    const labels: Record<NonNullable<Truck["status"]>, string> = {
       ACTIVE: "Activo",
       IN_MAINTENANCE: "En Taller",
-      INACTIVE: "Inactivo (Baja)",
+      INACTIVE: "Inactivo",
+      DISCARDED: "Dado de Baja", // <-- SOLUCIÓN: Agregamos el faltante
     };
+
+    // Por seguridad, si llega un status inválido, usamos INACTIVE por defecto
+    const currentStyle = status ? styles[status] : styles.INACTIVE;
+    const currentLabel = status ? labels[status] : labels.INACTIVE;
+
     return (
       <span
-        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${styles[status]}`}
+        className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border ${currentStyle}`}
       >
-        {labels[status]}
+        {currentLabel}
       </span>
     );
   };

@@ -1,4 +1,3 @@
-// src/types/tire.ts
 export type TireStatus = "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "DISCARDED";
 export interface Tire {
   id: string;
@@ -14,18 +13,21 @@ export interface Tire {
   warehouseId?: string;
   truckId?: string | null;
   position?: string | null;
-  initialOdometer?: number;
+  initialOdometer?: number; // Este lo usa el sistema para el montaje en el camión
+  historicalKm?: number; // <-- NUEVO: KM previos antes de entrar al sistema
   createdAt?: any;
 }
 
+// src/types/tire.ts
 export interface TireHistory {
   id?: string;
   tireId: string;
-  truckId: string; // Puede ser el ID del camión o "DESMONTADO"
-  driverId: string; // ID del usuario que realizó la acción
+  truckId: string;
+  driverId: string;
   date: any;
   newTreadDepth: number;
   currentOdometer: number;
   notes: string;
-  type: "MOUNT" | "UNMOUNT" | "INSPECTION" | "REPAIR"; // Unificamos tipos aquí
+  type: "MOUNT" | "UNMOUNT" | "INSPECTION" | "REPAIR";
+  imageUrl?: string; // <-- NUEVA PROPIEDAD
 }

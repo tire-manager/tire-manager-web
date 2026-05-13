@@ -1,5 +1,5 @@
 // src/services/tireService.ts
-import { db } from "@/lib/firebase/clientApp";
+import { db, storage } from "@/lib/firebase/clientApp";
 import {
   collection,
   doc,
@@ -12,8 +12,12 @@ import {
   orderBy,
   getDoc,
   writeBatch,
+  limit,
+  QueryDocumentSnapshot,
+  startAfter,
 } from "firebase/firestore";
-import { Tire } from "@/types/tire";
+import { Tire, TireHistory } from "@/types/tire";
+import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
 // --- FUNCIÓN INTERNA DE APOYO ---
 const addTireHistoryEvent = async (event: any) => {
@@ -144,6 +148,8 @@ export const assignTireToTruck = async (
   return { success: true };
 };
 
+// src/services/tireService.ts
+
 export const unmountTire = async (
   tireId: string,
   warehouseId: string,
@@ -151,11 +157,16 @@ export const unmountTire = async (
   odo: number,
   depth: number,
   reason: string,
+  imageUrl?: string,
 ) => {
+  // 1. Obtenemos la llanta antes de limpiarla para saber de qué camión viene
+  const tireSnap = await getDoc(doc(db, "tires", tireId));
+  const previousTruckId = tireSnap.data()?.truckId;
+
   const tireRef = doc(db, "tires", tireId);
   await updateDoc(tireRef, {
     status: "AVAILABLE",
-    truckId: null,
+    truckId: null, // Aquí sí lo limpiamos de la llanta actual
     position: null,
     warehouseId: warehouseId,
     currentTreadDepth: depth,
@@ -163,12 +174,13 @@ export const unmountTire = async (
 
   await addTireHistoryEvent({
     tireId,
-    truckId: "DESMONTADO",
+    truckId: previousTruckId || "DESCONOCIDO", // <-- GUARDAMOS EL ID REAL DEL CAMIÓN
     driverId: userId,
     newTreadDepth: depth,
     currentOdometer: odo,
     notes: reason,
     type: "UNMOUNT",
+    imageUrl: imageUrl || null,
   });
 };
 
@@ -335,4 +347,54 @@ export const getTireAdvancedStats = (tire: any, history: any[]) => {
     // ¡AQUÍ ESTÁ LA LÍNEA QUE FALTABA!
     isRetreadable: tire.currentTreadDepth >= LIMIT_MM,
   };
+};
+
+export const uploadTirePhoto = async (
+  file: File,
+  tireId: string,
+): Promise<string> => {
+  try {
+    // Creamos una ruta única: tires/ID_LLANTA/timestamp_nombre.jpg
+    const fileRef = ref(storage, `tires/${tireId}/${Date.now()}_${file.name}`);
+    await uploadBytes(fileRef, file);
+    const downloadUrl = await getDownloadURL(fileRef);
+    return downloadUrl;
+  } catch (error) {
+    console.error("Error al subir la foto:", error);
+    throw new Error("No se pudo subir la imagen de evidencia.");
+  }
+};
+
+// Función para obtener inspecciones agrupadas por fecha/odómetro
+export const getTruckInspectionHistory = async (
+  truckId: string,
+  pageSize: number = 10,
+  lastVisible?: QueryDocumentSnapshot,
+) => {
+  try {
+    let q = query(
+      collection(db, "tire_history"),
+      where("truckId", "==", truckId),
+      orderBy("date", "desc"), // Lo más reciente primero
+      limit(pageSize),
+    );
+
+    if (lastVisible) {
+      q = query(q, startAfter(lastVisible));
+    }
+
+    const snapshot = await getDocs(q);
+    const events = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as TireHistory[];
+
+    return {
+      events,
+      lastVisible: snapshot.docs[snapshot.docs.length - 1],
+    };
+  } catch (error) {
+    console.error("Error al obtener historial paginado:", error);
+    throw error;
+  }
 };

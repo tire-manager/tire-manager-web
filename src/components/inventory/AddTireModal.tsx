@@ -4,7 +4,7 @@ import React, { useEffect, useState } from "react";
 import { X, PackagePlus, MapPin } from "lucide-react";
 import { addTire } from "@/services/tireService";
 import { getGlobalSettings, GlobalSettings } from "@/services/settingsService";
-import { getWarehouses, Warehouse } from "@/services/warehouseService"; // <-- NUEVA IMPORTACIÓN
+import { getWarehouses, Warehouse } from "@/services/warehouseService";
 import toast from "react-hot-toast";
 
 interface AddTireModalProps {
@@ -20,7 +20,7 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [config, setConfig] = useState<GlobalSettings | null>(null);
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]); // <-- ESTADO PARA ALMACENES
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 
   const [formData, setFormData] = useState({
     serialNumber: "",
@@ -30,13 +30,12 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
     initialTreadDepth: "",
     price: "",
     currency: "PEN" as "PEN" | "USD",
-    warehouseId: "", // <-- NUEVO CAMPO
+    warehouseId: "",
+    historicalKm: "0", // <-- NUEVO ESTADO INICIAL
   });
 
-  // Cargar configuración global y almacenes al abrir el modal
   useEffect(() => {
     if (isOpen) {
-      // Cargar Configuración de Llantas
       getGlobalSettings().then((data) => {
         setConfig(data);
         setFormData((prev) => ({
@@ -45,9 +44,7 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
         }));
       });
 
-      // Cargar Almacenes Operativos
       getWarehouses().then((data) => {
-        // Filtramos para que solo se puedan seleccionar almacenes activos
         setWarehouses(data.filter((w) => w.status === "ACTIVE"));
       });
     }
@@ -72,7 +69,8 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
           currentTreadDepth: depth,
           price: parseFloat(formData.price) || 0,
           currency: formData.currency,
-          warehouseId: formData.warehouseId, // <-- ENVIAMOS EL ALMACÉN
+          warehouseId: formData.warehouseId,
+          historicalKm: parseInt(formData.historicalKm) || 0, // <-- ENVIAMOS EL DATO
         }),
         {
           loading: "Registrando neumático...",
@@ -81,7 +79,6 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
         },
       );
 
-      // Reset del formulario
       setFormData({
         serialNumber: "",
         brand: "",
@@ -91,6 +88,7 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
         price: "",
         currency: "PEN",
         warehouseId: "",
+        historicalKm: "0", // <-- RESET
       });
 
       onSuccess();
@@ -143,7 +141,7 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
             />
           </div>
 
-          {/* MARCA Y MODELO (Desde el maestro de datos) */}
+          {/* MARCA Y MODELO */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">
@@ -191,10 +189,10 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
             </div>
           </div>
 
-          {/* MEDIDA Y PROFUNDIDAD */}
-          <div className="grid grid-cols-2 gap-4">
+          {/* MEDIDA, PROFUNDIDAD Y KM PREVIOS (3 COLUMNAS) */}
+          <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase">
                 Medida
               </label>
               <input
@@ -207,13 +205,13 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
                     size: e.target.value.toUpperCase(),
                   })
                 }
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-medium"
-                placeholder="Ej: 11R22.5"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase text-sm font-bold"
+                placeholder="295/80R22.5"
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">
-                Profundidad (mm)
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase">
+                Prof. (mm)
               </label>
               <input
                 type="number"
@@ -226,12 +224,28 @@ export const AddTireModal: React.FC<AddTireModalProps> = ({
                     initialTreadDepth: e.target.value,
                   })
                 }
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-bold text-blue-600"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-sm font-black text-blue-600"
+              />
+            </div>
+            {/* NUEVO CAMPO */}
+            <div>
+              <label className="block text-[11px] font-bold text-slate-700 mb-1 uppercase text-amber-700">
+                KM Previos
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={formData.historicalKm}
+                onChange={(e) =>
+                  setFormData({ ...formData, historicalKm: e.target.value })
+                }
+                className="w-full p-3 bg-amber-50 border border-amber-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none text-sm font-black text-amber-700 placeholder-amber-300"
+                placeholder="0"
               />
             </div>
           </div>
 
-          {/* NUEVO CAMPO: ALMACÉN DE DESTINO */}
+          {/* ALMACÉN DE DESTINO */}
           <div className="p-3 bg-blue-50 rounded-xl border border-blue-100">
             <label className="block text-sm font-black text-blue-900 mb-1 flex items-center gap-1.5">
               <MapPin className="w-4 h-4" /> Almacén de Ingreso
