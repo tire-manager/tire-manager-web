@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from "react";
 import { X, UserCog } from "lucide-react";
 import { updateUserProfile, UserStatus } from "@/services/userService";
+import { getTrucks } from "@/services/truckService"; // <-- NUEVA IMPORTACIÓN
+import { Truck as TruckType } from "@/types/truck"; // <-- NUEVA IMPORTACIÓN
 import { UserProfile, UserRole } from "@/types/user";
 import toast from "react-hot-toast";
 
@@ -20,18 +22,28 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
   user,
 }) => {
   const [loading, setLoading] = useState(false);
+  const [trucks, setTrucks] = useState<TruckType[]>([]); // <-- ESTADO DE CAMIONES
+
   const [formData, setFormData] = useState({
     displayName: "",
     role: "DRIVER" as UserRole,
     status: "ACTIVE" as UserStatus,
+    truckId: "", // <-- AÑADIMOS EL CAMPO
   });
 
   useEffect(() => {
+    if (isOpen) {
+      getTrucks().then((data) =>
+        setTrucks(data.filter((t) => t.status !== "DISCARDED")),
+      );
+    }
+
     if (user && isOpen) {
       setFormData({
         displayName: user.displayName,
         role: user.role,
         status: user.status || "ACTIVE",
+        truckId: user.truckId || "", // <-- CARGAMOS EL CAMIÓN ACTUAL
       });
     }
   }, [user, isOpen]);
@@ -47,6 +59,9 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
         updateUserProfile(user.uid, {
           displayName: formData.displayName,
           role: formData.role,
+          status: formData.status,
+          // Actualizamos el camión en la base de datos
+          truckId: formData.role === "ADMIN" ? null : formData.truckId || null,
         }),
         {
           loading: "Actualizando personal...",
@@ -99,20 +114,48 @@ export const EditUserModal: React.FC<EditUserModalProps> = ({
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-1">
-              Rol en el Sistema
-            </label>
-            <select
-              value={formData.role}
-              onChange={(e) =>
-                setFormData({ ...formData, role: e.target.value as UserRole })
-              }
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-medium"
-            >
-              <option value="DRIVER">Chofer (App Móvil)</option>
-              <option value="ADMIN">Administrador (Panel Web)</option>
-            </select>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-bold text-slate-700 mb-1">
+                Rol en el Sistema
+              </label>
+              <select
+                value={formData.role}
+                onChange={(e) =>
+                  setFormData({ ...formData, role: e.target.value as UserRole })
+                }
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-bold text-slate-700"
+              >
+                <option value="DRIVER">Chofer</option>
+                <option value="ADMIN">Administrador</option>
+              </select>
+            </div>
+
+            {/* MOSTRAR SELECT SI ES CHOFER */}
+            {formData.role === "DRIVER" && (
+              <div className="animate-in fade-in slide-in-from-right-2">
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Camión Asignado
+                </label>
+                <select
+                  value={formData.truckId}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      truckId: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none font-bold text-slate-700"
+                >
+                  <option value="">-- Sin asignar --</option>
+                  {trucks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.licensePlate}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           <div>

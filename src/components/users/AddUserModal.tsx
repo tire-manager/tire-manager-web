@@ -1,8 +1,10 @@
 // src/components/users/AddUserModal.tsx
 "use client";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { X, Eye, EyeOff, UserPlus } from "lucide-react";
 import { createUserViaApi, UserStatus } from "@/services/userService";
+import { getTrucks } from "@/services/truckService"; // <-- NUEVA IMPORTACIÓN
+import { Truck as TruckType } from "@/types/truck"; // <-- NUEVA IMPORTACIÓN
 import { UserRole } from "@/types/user";
 import toast from "react-hot-toast";
 
@@ -19,6 +21,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [trucks, setTrucks] = useState<TruckType[]>([]); // <-- ESTADO DE CAMIONES
 
   const [formData, setFormData] = useState({
     displayName: "",
@@ -26,8 +29,18 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
     password: "",
     role: "DRIVER" as UserRole,
     truckId: "",
-    status: "ACTIVE" as UserStatus, // Inicializado por defecto
+    status: "ACTIVE" as UserStatus,
   });
+
+  // <-- CARGAMOS LOS CAMIONES AL ABRIR EL MODAL -->
+  useEffect(() => {
+    if (isOpen) {
+      getTrucks().then((data) => {
+        // Opcional: Puedes filtrar para que solo salgan camiones activos
+        setTrucks(data.filter((t) => t.status !== "DISCARDED"));
+      });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -39,7 +52,7 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
       await toast.promise(
         createUserViaApi({
           ...formData,
-          // Si es ADMIN, nos aseguramos de que el truckId vaya nulo
+          // Guardamos el ID del camión si es chofer
           truckId: formData.role === "ADMIN" ? null : formData.truckId || null,
         }),
         {
@@ -52,7 +65,6 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
 
       onSuccess();
       onClose();
-      // Limpiamos el formulario tras el éxito
       setFormData({
         displayName: "",
         email: "",
@@ -173,18 +185,24 @@ export const AddUserModal: React.FC<AddUserModalProps> = ({
                 <label className="block text-sm font-bold text-slate-700 mb-1">
                   Camión Asignado
                 </label>
-                <input
-                  type="text"
+                {/* <-- AHORA ES UN SELECT CON LOS CAMIONES REALES --> */}
+                <select
                   value={formData.truckId}
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      truckId: e.target.value.toUpperCase(),
+                      truckId: e.target.value,
                     })
                   }
-                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-bold text-slate-700"
-                  placeholder="Placa o ID"
-                />
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"
+                >
+                  <option value="">-- Seleccionar --</option>
+                  {trucks.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.licensePlate}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>

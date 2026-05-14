@@ -7,7 +7,7 @@ export interface UserProfile {
   email: string;
   displayName: string;
   role: "ADMIN" | "DRIVER";
-  status?: "ACTIVE" | "INACTIVE";
+  status?: "ACTIVE" | "INACTIVE" | "ON_VACATION";
 
   // 👇 AQUÍ ESTÁ EL CAMBIO: Agregamos " | null "
   truckId?: string | null;

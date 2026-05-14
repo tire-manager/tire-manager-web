@@ -18,9 +18,11 @@ export function proxy(request: NextRequest) {
 
   // 2. SI HAY SESIÓN Y ESTÁ EN LOGIN: Mandarlo a su pantalla principal
   if (sessionCookie && isAuthPage) {
-    return userRole === "ADMIN"
-      ? NextResponse.redirect(new URL("/admin/dashboard", request.url))
-      : NextResponse.redirect(new URL("/driver", request.url));
+    if (userRole === "ADMIN") {
+      return NextResponse.redirect(new URL("/admin/dashboard", request.url));
+    } else {
+      return NextResponse.redirect(new URL("/driver/dashboard", request.url)); // <-- AQUÍ
+    }
   }
 
   // 3. SEGURIDAD CRUZADA: Un Driver no puede entrar a /admin
