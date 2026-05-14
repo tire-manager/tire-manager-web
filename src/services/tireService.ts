@@ -150,38 +150,65 @@ export const assignTireToTruck = async (
 
 // src/services/tireService.ts
 
+// En src/services/tireService.ts
+// Asegúrate de tener importado 'getDoc' de firebase/firestore en la parte superior
+
 export const unmountTire = async (
   tireId: string,
   warehouseId: string,
-  userId: string,
-  odo: number,
-  depth: number,
+  userId: string, // <-- NUEVO: ID del administrador
+  currentOdometer: number,
+  currentTreadDepth: number,
   reason: string,
   imageUrl?: string,
 ) => {
-  // 1. Obtenemos la llanta antes de limpiarla para saber de qué camión viene
-  const tireSnap = await getDoc(doc(db, "tires", tireId));
-  const previousTruckId = tireSnap.data()?.truckId;
+  try {
+    const tireRef = doc(db, "tires", tireId);
+    const tireSnap = await getDoc(tireRef);
 
-  const tireRef = doc(db, "tires", tireId);
-  await updateDoc(tireRef, {
-    status: "AVAILABLE",
-    truckId: null, // Aquí sí lo limpiamos de la llanta actual
-    position: null,
-    warehouseId: warehouseId,
-    currentTreadDepth: depth,
-  });
+    if (!tireSnap.exists()) throw new Error("Llanta no encontrada");
+    const tireData = tireSnap.data();
 
-  await addTireHistoryEvent({
-    tireId,
-    truckId: previousTruckId || "DESCONOCIDO", // <-- GUARDAMOS EL ID REAL DEL CAMIÓN
-    driverId: userId,
-    newTreadDepth: depth,
-    currentOdometer: odo,
-    notes: reason,
-    type: "UNMOUNT",
-    imageUrl: imageUrl || null,
-  });
+    // --- REGLA DE NEGOCIO: LÓGICA DE ESTADOS ---
+    let finalStatus = "AVAILABLE"; // Por defecto, si se quita, va al almacén
+
+    // Si la razón contiene las palabras clave de descarte, se da de baja
+    if (
+      reason.includes("Límite") ||
+      reason.includes("Desgaste") ||
+      reason.includes("Baja")
+    ) {
+      finalStatus = "DISCARDED";
+    }
+
+    // 1. Actualizamos el neumático
+    await updateDoc(tireRef, {
+      truckId: null,
+      position: null,
+      // Si es baja física, ya no debería ocupar espacio en tu "warehouseId"
+      warehouseId: finalStatus === "DISCARDED" ? null : warehouseId,
+      status: finalStatus,
+      currentTreadDepth: currentTreadDepth,
+      updatedAt: new Date(),
+    });
+
+    // 2. Guardamos la auditoría exacta en el Historial
+    const historyRef = collection(db, "tire_history");
+    await addDoc(historyRef, {
+      tireId,
+      truckId: tireData.truckId, // Guardamos de qué camión salió
+      type: "UNMOUNT",
+      date: new Date(),
+      currentOdometer,
+      newTreadDepth: currentTreadDepth,
+      notes: reason,
+      imageUrl: imageUrl || null,
+      userId: userId || "SYSTEM", // <-- TRAZABILIDAD: Guardamos quién hizo la acción
+    });
+  } catch (error) {
+    console.error("Error al desmontar neumático:", error);
+    throw error;
+  }
 };
 
 // --- CONSULTAS DE HISTORIAL ---
@@ -225,14 +252,20 @@ export const updateTire = async (id: string, data: Partial<Tire>) => {
   }
 };
 
-export const updateTireStatus = async (id: string, status: Tire["status"]) => {
+// En src/services/tireService.ts
+
+export const updateTireStatus = async (tireId: string, newStatus: string) => {
   try {
-    const tireRef = doc(db, "tires", id);
-    await updateDoc(tireRef, { status });
-    return { success: true };
+    const tireRef = doc(db, "tires", tireId);
+
+    // Al actualizar, forzamos que el estado en la base de datos cambie al que le pasamos (ej. "DISCARDED")
+    await updateDoc(tireRef, {
+      status: newStatus,
+      updatedAt: new Date(),
+    });
   } catch (error) {
-    console.error("Error al actualizar estado del neumático:", error);
-    throw new Error("No se pudo actualizar el estado operativo.");
+    console.error("Error al actualizar el estado del neumático:", error);
+    throw error;
   }
 };
 
@@ -365,36 +398,109 @@ export const uploadTirePhoto = async (
   }
 };
 
-// Función para obtener inspecciones agrupadas por fecha/odómetro
+// src/services/tireService.ts
+// Asegúrate de tener estas importaciones arriba:
+// import { collection, query, where, orderBy, limit, getDocs, startAfter } from "firebase/firestore";
+
 export const getTruckInspectionHistory = async (
   truckId: string,
-  pageSize: number = 10,
-  lastVisible?: QueryDocumentSnapshot,
+  pageSize: number = 50, // Subimos a 50 porque ahora agruparemos por inspección
+  lastVisible?: any,
+  startDate?: string,
+  endDate?: string,
 ) => {
   try {
-    let q = query(
-      collection(db, "tire_history"),
+    // Construimos los filtros dinámicamente
+    let constraints: any[] = [
       where("truckId", "==", truckId),
-      orderBy("date", "desc"), // Lo más reciente primero
-      limit(pageSize),
-    );
+      orderBy("date", "desc"),
+    ];
 
-    if (lastVisible) {
-      q = query(q, startAfter(lastVisible));
+    if (startDate) {
+      constraints.push(where("date", ">=", new Date(`${startDate}T00:00:00`)));
+    }
+    if (endDate) {
+      constraints.push(where("date", "<=", new Date(`${endDate}T23:59:59`)));
     }
 
+    if (lastVisible) {
+      constraints.push(startAfter(lastVisible));
+    }
+
+    constraints.push(limit(pageSize));
+
+    const q = query(collection(db, "tire_history"), ...constraints);
     const snapshot = await getDocs(q);
+
     const events = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
-    })) as TireHistory[];
+    })) as any[];
 
     return {
       events,
-      lastVisible: snapshot.docs[snapshot.docs.length - 1],
+      lastVisible:
+        snapshot.docs.length > 0
+          ? snapshot.docs[snapshot.docs.length - 1]
+          : null,
     };
   } catch (error) {
-    console.error("Error al obtener historial paginado:", error);
+    console.error("Error al obtener historial:", error);
+    throw error;
+  }
+};
+
+// src/services/tireService.ts
+// Asegúrate de importar esto arriba: import { query, where, orderBy, limit, startAfter } from "firebase/firestore";
+
+export const getPaginatedInventory = async (
+  pageSize: number,
+  lastVisible?: any,
+  statusFilter?: string,
+  searchTerm?: string,
+) => {
+  try {
+    let constraints: any[] = [];
+
+    // Filtro por estado
+    if (statusFilter && statusFilter !== "ALL") {
+      constraints.push(where("status", "==", statusFilter));
+    }
+
+    // Búsqueda por Número de Serie (El truco de Firebase para buscar texto)
+    if (searchTerm) {
+      constraints.push(where("serialNumber", ">=", searchTerm));
+      constraints.push(where("serialNumber", "<=", searchTerm + "\uf8ff"));
+      // Firestore requiere ordenar por el mismo campo usado en operadores de desigualdad
+      constraints.push(orderBy("serialNumber", "asc"));
+    } else {
+      // Ordenamiento por defecto si no hay búsqueda
+      constraints.push(orderBy("createdAt", "desc")); // Asegúrate de que tus llantas tengan un campo createdAt
+    }
+
+    if (lastVisible) {
+      constraints.push(startAfter(lastVisible));
+    }
+
+    constraints.push(limit(pageSize));
+
+    const q = query(collection(db, "tires"), ...constraints);
+    const snapshot = await getDocs(q);
+
+    const tires = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Tire[];
+
+    return {
+      tires,
+      lastVisible:
+        snapshot.docs.length > 0
+          ? snapshot.docs[snapshot.docs.length - 1]
+          : null,
+    };
+  } catch (error) {
+    console.error("Error al obtener inventario paginado:", error);
     throw error;
   }
 };

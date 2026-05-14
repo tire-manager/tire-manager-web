@@ -51,7 +51,8 @@ import { generateTruckTechnicalReportPDF } from "@/lib/utils/exportPDF";
 import { generateInspectionReportPDF } from "@/lib/utils/exportInspectionPDF"; // <-- NUEVO REPORTE DE EVENTOS
 import toast from "react-hot-toast";
 import * as htmlToImage from "html-to-image";
-import { TruckHistoryLog } from "../TruckHistoryLog";
+import { TruckHistoryLog } from "../../../../components/trucks/TruckHistoryLog";
+import { useAuth } from "@/hooks/useAuth";
 
 const CHART_COLORS = [
   "#2563eb",
@@ -67,6 +68,8 @@ const CHART_COLORS = [
 ];
 
 export default function TruckProfilePage() {
+  const { userId } = useAuth();
+
   const params = useParams();
   const [truck, setTruck] = useState<TruckType | null>(null);
   const [truckTires, setTruckTires] = useState<Tire[]>([]);
@@ -266,7 +269,7 @@ export default function TruckProfilePage() {
       await unmountTire(
         selectedTire.id,
         unmountData.warehouseId,
-        "ADMIN",
+        userId || "SYSTEM",
         unmountData.currentOdometer,
         unmountData.currentTreadDepth,
         unmountData.reason,
@@ -350,29 +353,18 @@ export default function TruckProfilePage() {
     }
   };
 
-  // <-- FUNCIÓN PARA EXPORTAR EL ACTA DE LA ÚLTIMA INSPECCIÓN -->
   const handleExportLatestInspection = async () => {
     if (!truck || !truck.currentOdometer) return;
     setIsHeaderMenuOpen(false);
 
     const toastId = toast.loading("Generando Acta de Inspección...");
     try {
-      // CAPTURAMOS EL GRÁFICO
-      const chartElement = document.getElementById("chart-container");
-      let chartImage = undefined;
-      if (chartElement) {
-        chartImage = await htmlToImage.toPng(chartElement, {
-          pixelRatio: 2,
-          backgroundColor: "#ffffff",
-        });
-      }
-
+      // Ya NO necesitamos tomarle foto a la pantalla con htmlToImage
       await generateInspectionReportPDF(
         truck,
         truck.currentOdometer,
         [...truckTires, ...pastTires],
         tiresHistories,
-        chartImage, // Pasamos la imagen aquí
       );
       toast.success("Acta generada exitosamente", { id: toastId });
     } catch (error: any) {
@@ -433,7 +425,7 @@ export default function TruckProfilePage() {
               ></div>
 
               <div className="absolute right-0 mt-2 w-64 bg-white border border-slate-200 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
-                <button
+                {/* <button
                   onClick={handleExportPDF}
                   className="w-full text-left px-4 py-3 text-sm font-bold text-slate-700 hover:bg-slate-50 hover:text-blue-600 flex items-center gap-2 border-b border-slate-100 transition-colors"
                 >
@@ -446,7 +438,7 @@ export default function TruckProfilePage() {
                 >
                   <ClipboardCheck className="w-4 h-4" />
                   Acta de Última Inspección
-                </button>
+                </button> */}
                 <button
                   onClick={() => {
                     setIsHeaderMenuOpen(false);

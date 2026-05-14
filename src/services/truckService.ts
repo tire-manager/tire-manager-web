@@ -9,6 +9,11 @@ import {
   getDoc,
   updateDoc,
   writeBatch,
+  limit,
+  orderBy,
+  query,
+  startAfter,
+  where,
 } from "firebase/firestore";
 import { Truck } from "@/types/truck";
 
@@ -101,5 +106,61 @@ export const assignDriverToTruck = async (
   } catch (error) {
     console.error("Error al sincronizar asignación de chofer:", error);
     throw new Error("No se pudo asignar el chofer.");
+  }
+};
+
+// src/services/truckService.ts
+// Asegúrate de importar esto arriba si no lo tienes:
+// import { collection, query, where, orderBy, limit, startAfter, getDocs } from "firebase/firestore";
+
+export const getPaginatedTrucks = async (
+  pageSize: number,
+  lastVisible?: any,
+  statusFilter?: string,
+  searchTerm?: string,
+) => {
+  try {
+    let constraints: any[] = [];
+
+    // Filtro por estado
+    if (statusFilter && statusFilter !== "ALL") {
+      constraints.push(where("status", "==", statusFilter));
+    }
+
+    // Búsqueda nativa en Firebase por Placa (Búsqueda por prefijo)
+    if (searchTerm) {
+      const searchUpper = searchTerm.toUpperCase();
+      constraints.push(where("licensePlate", ">=", searchUpper));
+      constraints.push(where("licensePlate", "<=", searchUpper + "\uf8ff"));
+      constraints.push(orderBy("licensePlate", "asc"));
+    } else {
+      // Ordenamiento por defecto
+      constraints.push(orderBy("licensePlate", "asc"));
+    }
+
+    if (lastVisible) {
+      constraints.push(startAfter(lastVisible));
+    }
+
+    constraints.push(limit(pageSize));
+
+    const q = query(collection(db, "trucks"), ...constraints);
+    const snapshot = await getDocs(q);
+
+    const trucks = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    })) as Truck[];
+
+    return {
+      trucks,
+      lastVisible:
+        snapshot.docs.length > 0
+          ? snapshot.docs[snapshot.docs.length - 1]
+          : null,
+    };
+  } catch (error) {
+    console.error("Error al obtener camiones paginados:", error);
+    throw error;
   }
 };

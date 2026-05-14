@@ -4,9 +4,79 @@ import autoTable from "jspdf-autotable";
 import { Truck } from "@/types/truck";
 import { Tire, TireHistory } from "@/types/tire";
 
-// --- NUEVO: Función auxiliar para convertir imagen de URL a Base64 ---
+const CHART_COLORS = [
+  "#2563eb",
+  "#dc2626",
+  "#16a34a",
+  "#d97706",
+  "#9333ea",
+  "#0891b2",
+  "#be123c",
+  "#ea580c",
+  "#4f46e5",
+  "#059669",
+];
+
+// --- NUEVA FUNCIÓN CON COMPRESIÓN DE IMAGEN ---
 const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
+  // Descargamos primero para evitar bloqueos de seguridad del navegador (CORS)
   const res = await fetch(imageUrl);
+  const blob = await res.blob();
+  const localUrl = URL.createObjectURL(blob);
+
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+
+      // Forzamos un tamaño máximo para que la foto no pese megabytes
+      const MAX_WIDTH = 800;
+      const MAX_HEIGHT = 800;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > height) {
+        if (width > MAX_WIDTH) {
+          height *= MAX_WIDTH / width;
+          width = MAX_WIDTH;
+        }
+      } else {
+        if (height > MAX_HEIGHT) {
+          width *= MAX_HEIGHT / height;
+          height = MAX_HEIGHT;
+        }
+      }
+      ``;
+
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(img, 0, 0, width, height);
+        // Comprimimos a formato JPEG con 60% de calidad (0.6)
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.6);
+        URL.revokeObjectURL(localUrl); // Limpiamos la memoria
+        resolve(dataUrl);
+      } else {
+        reject("Error en canvas");
+      }
+    };
+    img.onerror = reject;
+    img.src = localUrl;
+  });
+};
+
+const getQuickChartImage = async (chartConfig: any): Promise<string> => {
+  const res = await fetch("https://quickchart.io/chart", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      chart: chartConfig,
+      width: 800,
+      height: 350,
+      backgroundColor: "#ffffff",
+    }),
+  });
   const blob = await res.blob();
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -16,14 +86,14 @@ const getBase64ImageFromUrl = async (imageUrl: string): Promise<string> => {
   });
 };
 
+// --- AHORA LA FUNCIÓN YA NO RECIBE 'chartImage' ---
 export const generateInspectionReportPDF = async (
   truck: Truck,
   targetOdometer: number,
   allTires: Tire[],
   tiresHistories: Record<string, TireHistory[]>,
-  chartImage?: string, // <-- AHORA RECIBE LA IMAGEN DEL GRÁFICO
 ) => {
-  const doc = new jsPDF("portrait");
+  const doc = new jsPDF({ orientation: "portrait", compress: true });
 
   let inspectionDate = "N/D";
   const inspectedTires: any[] = [];
@@ -36,7 +106,6 @@ export const generateInspectionReportPDF = async (
     );
 
     eventsAtOdometer.forEach((ev) => {
-      // CORRECCIÓN DE FECHA: Maneja Timestamp o Date normal
       if (inspectionDate === "N/D" && ev.date) {
         inspectionDate = ev.date.seconds
           ? new Date(ev.date.seconds * 1000).toLocaleDateString()
@@ -62,7 +131,7 @@ export const generateInspectionReportPDF = async (
     throw new Error("No se encontraron registros para este kilometraje.");
   }
 
-  // --- ENCABEZADO Y DATOS ---
+  // --- 1. ENCABEZADO Y DATOS ---
   doc.setFillColor(30, 41, 59);
   doc.rect(0, 0, 210, 25, "F");
   doc.setFontSize(16);
@@ -82,22 +151,10 @@ export const generateInspectionReportPDF = async (
   doc.setTextColor(15, 23, 42);
   doc.text(`FECHA DE CONTROL: ${inspectionDate}`, 90, 48);
 
-  let currentY = 65; // Puntero de altura dinámico
+  let currentY = 65;
 
-  // --- NUEVO: GRÁFICA DE DESGASTE ---
-  if (chartImage) {
-    doc.setFontSize(12);
-    doc.text("CURVA DE DESGASTE HISTÓRICA", 14, currentY);
-    doc.addImage(chartImage, "PNG", 14, currentY + 4, 180, 80);
-    currentY += 95; // Bajamos el puntero para que la tabla no se monte encima
-  }
-
-  // --- TABLA DE LLANTAS MEDIDAS ---
+  // --- 2. TABLA DE LLANTAS MEDIDAS ---
   if (inspectedTires.length > 0) {
-    if (currentY > 250) {
-      doc.addPage();
-      currentY = 20;
-    }
     doc.setFontSize(12);
     doc.text("ESTADO DE NEUMÁTICOS INSPECCIONADOS", 14, currentY);
 
@@ -117,12 +174,8 @@ export const generateInspectionReportPDF = async (
     currentY = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // --- TABLA DE LLANTAS RETIRADAS ---
+  // --- 3. TABLA DE LLANTAS RETIRADAS ---
   if (removedTires.length > 0) {
-    if (currentY > 250) {
-      doc.addPage();
-      currentY = 20;
-    }
     doc.setFontSize(12);
     doc.setTextColor(220, 38, 38);
     doc.text("ALERTA: NEUMÁTICOS RETIRADOS EN ESTE CONTROL", 14, currentY);
@@ -138,17 +191,23 @@ export const generateInspectionReportPDF = async (
     currentY = (doc as any).lastAutoTable.finalY + 15;
   }
 
-  // --- TABLA DE CONTROLES HISTÓRICOS ---
+  // --- 4. NUEVA PÁGINA: PROCESAMIENTO DE DATOS ---
   doc.addPage();
-  doc.setFontSize(12);
+  doc.setFontSize(14);
   doc.setTextColor(15, 23, 42);
   doc.text(
-    `TABLA DE CONTROLES (HASTA ${targetOdometer.toLocaleString()} KM)`,
+    `CURVA Y TABLA DE CONTROLES (HASTA ${targetOdometer.toLocaleString()} KM)`,
     14,
     20,
   );
 
-  const involvedTires = [...inspectedTires, ...removedTires];
+  // Combinamos todas las llantas del evento
+  const allInvolved = [...inspectedTires, ...removedTires];
+
+  // Filtramos para eliminar duplicados (por si una llanta se inspeccionó y luego se desmontó en el mismo KM)
+  const involvedTires = Array.from(
+    new Map(allInvolved.map((t) => [t.serial, t])).values(),
+  );
   const headers = ["CONTROL", "FECHA", "ODÓMETRO (KM)"];
   involvedTires.forEach((t) => headers.push(`SERIE\n${t.serial}`));
 
@@ -174,8 +233,22 @@ export const generateInspectionReportPDF = async (
   );
   const lastKnown: Record<string, number> = {};
 
+  // PREPARAMOS DATOS PARA EL GRÁFICO AUTÓNOMO
+  const chartLabels: string[] = [];
+  const datasetsMap: Record<string, any> = {};
+
+  involvedTires.forEach((t, i) => {
+    datasetsMap[t.serial] = {
+      label: `Serie ${t.serial}`,
+      data: [],
+      borderColor: CHART_COLORS[i % CHART_COLORS.length],
+      backgroundColor: CHART_COLORS[i % CHART_COLORS.length],
+      fill: false,
+      datalabels: { align: "top", font: { weight: "bold" } },
+    };
+  });
+
   const controlRows = sortedPastEvents.map((point, index) => {
-    // CORRECCIÓN DE FECHA EN TABLA DE CONTROLES
     let dateStr = "N/D";
     if (point.date) {
       dateStr = point.date.seconds
@@ -189,22 +262,54 @@ export const generateInspectionReportPDF = async (
       point.odometer.toLocaleString(),
     ];
 
+    chartLabels.push(`${point.odometer}K`);
+
     involvedTires.forEach((t) => {
       const mm = point[t.serial];
       if (mm !== undefined) {
         lastKnown[t.serial] = mm;
         row.push(`${mm.toFixed(1)}`);
+        datasetsMap[t.serial].data.push(mm);
       } else if (lastKnown[t.serial] !== undefined) {
         row.push(`${lastKnown[t.serial].toFixed(1)}`);
+        datasetsMap[t.serial].data.push(lastKnown[t.serial]);
       } else {
         row.push("-");
+        datasetsMap[t.serial].data.push(null);
       }
     });
     return row;
   });
 
+  // GENERAR GRÁFICO CON QUICKCHART
+  let tableStartY = 28;
+  try {
+    const chartConfig = {
+      type: "line",
+      data: {
+        labels: chartLabels,
+        datasets: Object.values(datasetsMap),
+      },
+      options: {
+        plugins: {
+          datalabels: { display: true },
+          legend: { position: "bottom" },
+        },
+        scales: { yAxes: [{ ticks: { min: 0, max: 22, stepSize: 4 } }] },
+      },
+    };
+
+    const chartBase64 = await getQuickChartImage(chartConfig);
+    doc.addImage(chartBase64, "PNG", 14, 25, 180, 75);
+    tableStartY = 110; // Bajamos la tabla para que no pise el gráfico
+  } catch (error) {
+    console.error("No se pudo generar el gráfico automático:", error);
+    // Si falla el internet, simplemente no dibuja el gráfico y la tabla sube
+  }
+
+  // DIBUJAMOS LA TABLA DEBAJO
   autoTable(doc, {
-    startY: 25,
+    startY: tableStartY,
     head: [headers],
     body: controlRows,
     theme: "striped",
@@ -217,14 +322,14 @@ export const generateInspectionReportPDF = async (
     bodyStyles: { fontSize: 8, halign: "center" },
   });
 
-  // --- ANEXO FOTOGRÁFICO ---
+  // --- 5. ANEXO FOTOGRÁFICO ---
   const imagesToRender = [...inspectedTires, ...removedTires].filter(
     (t) => t.url,
   );
   if (imagesToRender.length > 0) {
     doc.addPage();
     let imgY = 20;
-    doc.setFontSize(12);
+    doc.setFontSize(14);
     doc.setTextColor(15, 23, 42);
     doc.text("EVIDENCIA FOTOGRÁFICA DEL CONTROL", 14, imgY);
     imgY += 10;

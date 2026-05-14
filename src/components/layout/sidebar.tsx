@@ -14,11 +14,10 @@ import {
   MapPin,
 } from "lucide-react";
 import { auth } from "@/lib/firebase/clientApp";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { onAuthStateChanged, signOut, User } from "firebase/auth";
 import { getUserProfile } from "@/services/userService";
 import { UserProfile } from "@/types/user";
 
-// Agrupamos las rutas para un diseño estilo ERP profesional
 const menuGroups = [
   {
     title: "Operaciones",
@@ -30,7 +29,6 @@ const menuGroups = [
     title: "Logística",
     items: [
       { name: "Flota", icon: Truck, path: "/admin/trucks" },
-      // 👇 AQUÍ AGREGAMOS EL ACCESO A LOS ALMACENES 👇
       { name: "Almacenes", icon: MapPin, path: "/admin/warehouses" },
       { name: "Inventario", icon: Package, path: "/admin/inventory" },
     ],
@@ -50,15 +48,32 @@ const menuGroups = [
 
 export default function Sidebar() {
   const pathname = usePathname();
+
+  // SEPARAMOS LOS ESTADOS PARA MAYOR CONTROL
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [firebaseUser, setFirebaseUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true); // <-- Nuevo estado de carga explícito
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        const profile = await getUserProfile(user.uid);
-        setUserProfile(profile);
+        setFirebaseUser(user); // Guardamos el usuario de Auth como respaldo
+        try {
+          const profile = await getUserProfile(user.uid);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error(
+            "Error obteniendo el perfil de la base de datos:",
+            error,
+          );
+        }
+      } else {
+        setFirebaseUser(null);
+        setUserProfile(null);
       }
+      setLoading(false); // Sin importar si falló o fue exitoso, quitamos el esqueleto
     });
+
     return () => unsubscribe();
   }, []);
 
@@ -119,18 +134,34 @@ export default function Sidebar() {
 
       {/* Footer del Sidebar: Perfil del Usuario Activo */}
       <div className="p-4 border-t border-slate-100 bg-white shrink-0">
-        {userProfile ? (
+        {loading ? (
+          /* Estado de carga ("Esqueleto") Light - Solo se muestra mientras consulta a la BD */
+          <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl animate-pulse border border-slate-100">
+            <div className="w-10 h-10 bg-slate-200 rounded-xl shrink-0"></div>
+            <div className="space-y-2 flex-1">
+              <div className="h-3 bg-slate-200 rounded w-3/4"></div>
+              <div className="h-2 bg-slate-200 rounded w-1/2"></div>
+            </div>
+          </div>
+        ) : (
+          /* Usuario Cargado - Se muestra incluso si el Perfil falló, usando el correo como respaldo */
           <div className="flex items-center justify-between bg-slate-50 p-3 rounded-2xl border border-slate-100">
             <div className="flex items-center gap-3 overflow-hidden">
               <div className="bg-white border border-slate-200 p-2 rounded-xl shrink-0 shadow-sm">
                 <UserCircle2 className="w-5 h-5 text-slate-400" />
               </div>
               <div className="truncate">
-                <p className="text-sm font-bold text-slate-800 truncate">
-                  {userProfile.displayName || "Administrador"}
+                <p
+                  className="text-sm font-bold text-slate-800 truncate"
+                  title={userProfile?.displayName || firebaseUser?.email || ""}
+                >
+                  {/* MAGIA AQUÍ: Intenta Nombre -> Si no hay, usa el Correo -> Si no hay, dice Administrador */}
+                  {userProfile?.displayName ||
+                    firebaseUser?.email ||
+                    "Administrador"}
                 </p>
                 <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">
-                  {userProfile.role}
+                  {userProfile?.role || "ADMIN"}
                 </p>
               </div>
             </div>
@@ -142,15 +173,6 @@ export default function Sidebar() {
             >
               <LogOut className="w-5 h-5" />
             </button>
-          </div>
-        ) : (
-          /* Estado de carga ("Esqueleto") Light */
-          <div className="flex items-center gap-3 bg-slate-50 p-3 rounded-2xl animate-pulse border border-slate-100">
-            <div className="w-10 h-10 bg-slate-200 rounded-xl shrink-0"></div>
-            <div className="space-y-2 flex-1">
-              <div className="h-3 bg-slate-200 rounded w-3/4"></div>
-              <div className="h-2 bg-slate-200 rounded w-1/2"></div>
-            </div>
           </div>
         )}
       </div>
