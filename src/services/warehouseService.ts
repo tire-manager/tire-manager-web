@@ -8,42 +8,48 @@ import {
   doc,
   serverTimestamp,
   query,
-  orderBy,
+  where,
 } from "firebase/firestore";
 
 export interface Warehouse {
   id: string;
+  companyId: string;
   name: string;
   location: string;
   status: "ACTIVE" | "INACTIVE";
   createdAt?: any;
 }
 
-export const getWarehouses = async (): Promise<Warehouse[]> => {
+export const getWarehouses = async (
+  companyId: string,
+): Promise<Warehouse[]> => {
   try {
-    const q = query(collection(db, "warehouses"));
+    const q = query(
+      collection(db, "warehouses"),
+      where("companyId", "==", companyId),
+    ); // <-- FILTRO
     const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as Warehouse[];
   } catch (error) {
-    console.error("Error al obtener almacenes:", error);
     return [];
   }
 };
 
 export const addWarehouse = async (
-  data: Omit<Warehouse, "id" | "createdAt">,
+  data: Omit<Warehouse, "id" | "createdAt" | "companyId">,
+  companyId: string,
 ) => {
   try {
     const docRef = await addDoc(collection(db, "warehouses"), {
       ...data,
-      createdAt: serverTimestamp(),
+      companyId,
+      createdAt: serverTimestamp(), // <-- GUARDA LA EMPRESA
     });
     return { success: true, id: docRef.id };
   } catch (error) {
-    console.error("Error al añadir almacén:", error);
     throw new Error("No se pudo registrar el almacén.");
   }
 };
@@ -54,7 +60,6 @@ export const updateWarehouse = async (id: string, data: Partial<Warehouse>) => {
     await updateDoc(docRef, data);
     return { success: true };
   } catch (error) {
-    console.error("Error al actualizar almacén:", error);
     throw new Error("No se pudo actualizar el almacén.");
   }
 };

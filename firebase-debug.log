@@ -1,0 +1,170 @@
+[debug] [2026-05-21T02:00:27.971Z] ----------------------------------------------------------------------
+[debug] [2026-05-21T02:00:27.976Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start --import=./firebase-data --export-on-exit
+[debug] [2026-05-21T02:00:27.977Z] CLI Version:   15.17.0
+[debug] [2026-05-21T02:00:27.977Z] Platform:      win32
+[debug] [2026-05-21T02:00:27.977Z] Node Version:  v24.15.0
+[debug] [2026-05-21T02:00:27.978Z] Time:          Wed May 20 2026 21:00:27 GMT-0500 (Peru Standard Time)
+[debug] [2026-05-21T02:00:27.978Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2026-05-21T02:00:27.985Z] >>> [apiv2][query] GET https://firebase-public.firebaseio.com/cli.json [none]
+[debug] [2026-05-21T02:00:34.475Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2026-05-21T02:00:34.476Z] > authorizing via signed-in user (gsinuiri@gmail.com)
+[debug] [2026-05-21T02:00:34.810Z] java version "21.0.10" 2026-01-20 LTS
+Java(TM) SE Runtime Environment (build 21.0.10+8-LTS-217)
+
+[debug] [2026-05-21T02:00:34.811Z] Java HotSpot(TM) 64-Bit Server VM (build 21.0.10+8-LTS-217, mixed mode, sharing)
+
+[debug] [2026-05-21T02:00:34.849Z] Parsed Java major version: 21
+[info] i  emulators: Starting emulators: auth, functions, firestore, storage, extensions {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: auth, functions, firestore, storage, extensions"}}
+[debug] [2026-05-21T02:00:34.854Z] Checked if tokens are valid: false, expires at: 1779042572857
+[debug] [2026-05-21T02:00:34.854Z] Checked if tokens are valid: false, expires at: 1779042572857
+[debug] [2026-05-21T02:00:34.855Z] > refreshing access token with scopes: []
+[debug] [2026-05-21T02:00:34.857Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-21T02:00:34.857Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-21T02:00:46.486Z] *** [apiv2] error from fetch(https://www.googleapis.com/oauth2/v3/token, {"headers":{},"method":"POST","body":{"_overheadLength":545,"_valueLength":212,"_valuesToMeasure":[],"writable":false,"readable":true,"dataSize":0,"maxDataSize":2097152,"pauseStreams":true,"_released":true,"_streams":[],"_currentStream":null,"_insideLoop":false,"_pendingNext":false,"_boundary":"--------------------------f5f9f616f15aacc0e2e377ce","_events":{},"_eventsCount":1}}): FetchError: request to https://www.googleapis.com/oauth2/v3/token failed, reason: getaddrinfo ENOTFOUND www.googleapis.com
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[error] !!  extensions: Unable to look up project number for tires-19d41.
+ If this is a real project, ensure that you are logged in and have access to it.
+ If this is a fake project, please use a project ID starting with 'demo-' to skip production calls.
+ Continuing with a fake project number - secrets and other features that require production access may behave unexpectedly. {"metadata":{"emulator":{"name":"extensions"},"message":"Unable to look up project number for tires-19d41.\n If this is a real project, ensure that you are logged in and have access to it.\n If this is a fake project, please use a project ID starting with 'demo-' to skip production calls.\n Continuing with a fake project number - secrets and other features that require production access may behave unexpectedly."}}
+[debug] [2026-05-21T02:00:46.552Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.552Z] [auth] Authentication Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.552Z] [firestore] Firestore Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.553Z] [firestore.websocket] websocket server for firestore only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.554Z] [storage] Storage Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.555Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2026-05-21T02:00:46.565Z] Write emulator hub locator at C:\Users\win11\AppData\Local\Temp\hub-tires-19d41.json
+[debug] [2026-05-21T02:00:46.590Z] [Extensions] Started Extensions emulator, this is a noop.
+[debug] [2026-05-21T02:00:46.605Z] [functions] Functions Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.606Z] [eventarc] Eventarc Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.606Z] [tasks] Cloud Tasks Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2026-05-21T02:00:46.606Z] late-assigned ports for functions and eventarc emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"auth":[{"address":"127.0.0.1","family":"IPv4","port":9099}],"firestore":[{"address":"127.0.0.1","family":"IPv4","port":8080}],"firestore.websocket":[{"address":"127.0.0.1","family":"IPv4","port":9150}],"storage":[{"address":"127.0.0.1","family":"IPv4","port":9199}],"functions":[{"address":"127.0.0.1","family":"IPv4","port":5001}],"eventarc":[{"address":"127.0.0.1","family":"IPv4","port":9299}],"tasks":[{"address":"127.0.0.1","family":"IPv4","port":9499}]},"metadata":{"message":"late-assigned ports for functions and eventarc emulators"}}
+[warn] !  functions: The following emulators are not running, calls to these services from the Functions emulator will affect production: apphosting, database, hosting, pubsub, dataconnect {"metadata":{"emulator":{"name":"functions"},"message":"The following emulators are not running, calls to these services from the Functions emulator will affect production: \u001b[1mapphosting, database, hosting, pubsub, dataconnect\u001b[22m"}}
+[debug] [2026-05-21T02:00:49.635Z] defaultcredentials: writing to file C:\Users\win11\AppData\Roaming\firebase\gsinuiri_gmail_com_application_default_credentials.json
+[debug] [2026-05-21T02:00:49.640Z] Setting GAC to C:\Users\win11\AppData\Roaming\firebase\gsinuiri_gmail_com_application_default_credentials.json {"metadata":{"emulator":{"name":"functions"},"message":"Setting GAC to C:\\Users\\win11\\AppData\\Roaming\\firebase\\gsinuiri_gmail_com_application_default_credentials.json"}}
+[debug] [2026-05-21T02:00:49.642Z] Checked if tokens are valid: false, expires at: 1779042572857
+[debug] [2026-05-21T02:00:49.642Z] Checked if tokens are valid: false, expires at: 1779042572857
+[debug] [2026-05-21T02:00:49.642Z] > refreshing access token with scopes: []
+[debug] [2026-05-21T02:00:49.643Z] >>> [apiv2][query] POST https://www.googleapis.com/oauth2/v3/token [none]
+[debug] [2026-05-21T02:00:49.643Z] >>> [apiv2][body] POST https://www.googleapis.com/oauth2/v3/token [omitted]
+[debug] [2026-05-21T02:01:12.899Z] <<< [apiv2][status] GET https://firebase-public.firebaseio.com/cli.json 200
+[debug] [2026-05-21T02:01:12.899Z] <<< [apiv2][body] GET https://firebase-public.firebaseio.com/cli.json {"cloudBuildErrorAfter":1594252800000,"cloudBuildWarnAfter":1590019200000,"defaultNode10After":1594252800000,"minVersion":"3.0.5","node8DeploysDisabledAfter":1613390400000,"node8RuntimeDisabledAfter":1615809600000,"node8WarnAfter":1600128000000}
+[debug] [2026-05-21T02:01:17.046Z] *** [apiv2] error from fetch(https://www.googleapis.com/oauth2/v3/token, {"headers":{},"method":"POST","body":{"_overheadLength":545,"_valueLength":212,"_valuesToMeasure":[],"writable":false,"readable":true,"dataSize":0,"maxDataSize":2097152,"pauseStreams":true,"_released":true,"_streams":[],"_currentStream":null,"_insideLoop":false,"_pendingNext":false,"_boundary":"--------------------------23ff0459eb4fec3033850dda","_events":{},"_eventsCount":1}}): FetchError: request to https://www.googleapis.com/oauth2/v3/token failed, reason: socket hang up
+[error] Authentication Error: Your credentials are no longer valid. Please run firebase login --reauth
+
+For CI servers and headless environments, generate a new token with firebase login:ci
+[debug] [2026-05-21T02:01:17.047Z] Failed to get Admin SDK config for tires-19d41, falling back to cache Failed to get Admin SDK for Firebase project tires-19d41. Please make sure the project exists and your account has permission to access it. {"name":"FirebaseError","children":[],"exit":2,"message":"Failed to get Admin SDK for Firebase project tires-19d41. Please make sure the project exists and your account has permission to access it.","original":{"name":"FirebaseError","children":[],"exit":1,"message":"Authentication Error: Your credentials are no longer valid. Please run \u001b[1mfirebase login --reauth\u001b[22m\n\nFor CI servers and headless environments, generate a new token with \u001b[1mfirebase login:ci\u001b[22m","status":500},"status":500}
+[info] i  firestore: Importing data from C:\Users\win11\Documents\workspace\franz\tire-manager-web\firebase-data\firestore_export\firestore_export.overall_export_metadata {"metadata":{"emulator":{"name":"firestore"},"message":"Importing data from C:\\Users\\win11\\Documents\\workspace\\franz\\tire-manager-web\\firebase-data\\firestore_export\\firestore_export.overall_export_metadata"}}
+[debug] [2026-05-21T02:01:17.067Z] Ignoring unsupported arg: auto_download {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: auto_download"}}
+[debug] [2026-05-21T02:01:17.067Z] Ignoring unsupported arg: single_project_mode_error {"metadata":{"emulator":{"name":"firestore"},"message":"Ignoring unsupported arg: single_project_mode_error"}}
+[debug] [2026-05-21T02:01:17.067Z] Starting Firestore Emulator with command {"binary":"java","args":["-Dgoogle.cloud_firestore.debug_log_level=FINE","-Duser.language=en","-jar","C:\\Users\\win11\\.cache\\firebase\\emulators\\cloud-firestore-emulator-v1.21.0.jar","--host","127.0.0.1","--port",8080,"--websocket_port",9150,"--database-edition","standard","--project_id","tires-19d41","--seed_from_export","C:\\Users\\win11\\Documents\\workspace\\franz\\tire-manager-web\\firebase-data\\firestore_export\\firestore_export.overall_export_metadata","--rules","C:\\Users\\win11\\Documents\\workspace\\franz\\tire-manager-web\\firestore.rules","--single_project_mode",true,"--functions_emulator","127.0.0.1:5001"],"optionalArgs":["port","webchannel_port","host","rules","websocket_port","database-edition","functions_emulator","seed_from_export","project_id","single_project_mode"],"joinArgs":false,"shell":false,"port":8080} {"metadata":{"emulator":{"name":"firestore"},"message":"Starting Firestore Emulator with command {\"binary\":\"java\",\"args\":[\"-Dgoogle.cloud_firestore.debug_log_level=FINE\",\"-Duser.language=en\",\"-jar\",\"C:\\\\Users\\\\win11\\\\.cache\\\\firebase\\\\emulators\\\\cloud-firestore-emulator-v1.21.0.jar\",\"--host\",\"127.0.0.1\",\"--port\",8080,\"--websocket_port\",9150,\"--database-edition\",\"standard\",\"--project_id\",\"tires-19d41\",\"--seed_from_export\",\"C:\\\\Users\\\\win11\\\\Documents\\\\workspace\\\\franz\\\\tire-manager-web\\\\firebase-data\\\\firestore_export\\\\firestore_export.overall_export_metadata\",\"--rules\",\"C:\\\\Users\\\\win11\\\\Documents\\\\workspace\\\\franz\\\\tire-manager-web\\\\firestore.rules\",\"--single_project_mode\",true,\"--functions_emulator\",\"127.0.0.1:5001\"],\"optionalArgs\":[\"port\",\"webchannel_port\",\"host\",\"rules\",\"websocket_port\",\"database-edition\",\"functions_emulator\",\"seed_from_export\",\"project_id\",\"single_project_mode\"],\"joinArgs\":false,\"shell\":false,\"port\":8080}"}}
+[info] i  firestore: Firestore Emulator logging to firestore-debug.log {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator logging to \u001b[1mfirestore-debug.log\u001b[22m"}}
+[info] +  firestore: Firestore Emulator was started in standard edition. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator was started in standard edition."}}
+[info] +  firestore: Firestore Emulator UI websocket is running on 9150. {"metadata":{"emulator":{"name":"firestore"},"message":"Firestore Emulator UI websocket is running on 9150."}}
+[info] i  auth: Importing config from C:\Users\win11\Documents\workspace\franz\tire-manager-web\firebase-data\auth_export\config.json {"metadata":{"emulator":{"name":"auth"},"message":"Importing config from C:\\Users\\win11\\Documents\\workspace\\franz\\tire-manager-web\\firebase-data\\auth_export\\config.json"}}
+[info] i  auth: Importing accounts from C:\Users\win11\Documents\workspace\franz\tire-manager-web\firebase-data\auth_export\accounts.json {"metadata":{"emulator":{"name":"auth"},"message":"Importing accounts from C:\\Users\\win11\\Documents\\workspace\\franz\\tire-manager-web\\firebase-data\\auth_export\\accounts.json"}}
+[debug] [2026-05-21T02:01:32.446Z] Ignoring unsupported arg: port {"metadata":{"emulator":{"name":"storage"},"message":"Ignoring unsupported arg: port"}}
+[debug] [2026-05-21T02:01:34.479Z] Temp file directory for storage emulator: C:\Users\win11\AppData\Local\Temp/firebase/storage/blobs {"metadata":{"emulator":{"name":"storage"},"message":"Temp file directory for storage emulator: C:\\Users\\win11\\AppData\\Local\\Temp/firebase/storage/blobs"}}
+[debug] [2026-05-21T02:01:34.502Z] [Extensions] Connecting Extensions emulator, this is a noop.
+[info] i  functions: Watching "C:\Users\win11\Documents\workspace\franz\tire-manager-web\functions" for Cloud Functions... {"metadata":{"emulator":{"name":"functions"},"message":"Watching \"C:\\Users\\win11\\Documents\\workspace\\franz\\tire-manager-web\\functions\" for Cloud Functions..."}}
+[debug] [2026-05-21T02:01:34.506Z] Validating nodejs source
+[debug] [2026-05-21T02:01:44.540Z] checkFunctionsSDKVersion was unable to fetch information from NPM Error: spawnSync C:\WINDOWS\system32\cmd.exe ETIMEDOUT
+    at Object.spawnSync (node:internal/child_process:1143:20)
+    at Object.spawnSync (node:child_process:911:24)
+    at spawn.spawnSync [as sync] (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\node_modules\cross-spawn\index.js:26:23)
+    at Object.getLatestSDKVersion (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js:55:25)
+    at Object.checkFunctionsSDKVersion (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\versioning.js:74:32)
+    at Delegate.validate (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\deploy\functions\runtimes\node\index.js:88:20)
+    at FunctionsEmulator.discoverTriggers (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulator.js:352:35)
+    at async FunctionsEmulator.loadTriggers (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulator.js:399:34)
+    at async FunctionsEmulator.connect (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\functionsEmulator.js:274:13)
+    at async Object.startAll (C:\Users\win11\AppData\Roaming\npm\node_modules\firebase-tools\lib\emulator\controller.js:695:13)
+[debug] [2026-05-21T02:01:44.543Z] > [functions] package.json contents: {
+  "name": "functions",
+  "scripts": {
+    "lint": "eslint --ext .js,.ts .",
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "engines": {
+    "node": "24"
+  },
+  "main": "lib/index.js",
+  "dependencies": {
+    "firebase-admin": "^13.6.0",
+    "firebase-functions": "^7.0.0"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^5.12.0",
+    "@typescript-eslint/parser": "^5.12.0",
+    "eslint": "^8.9.0",
+    "eslint-config-google": "^0.14.0",
+    "eslint-plugin-import": "^2.25.4",
+    "firebase-functions-test": "^3.4.1",
+    "typescript": "^5.7.3"
+  },
+  "private": true
+}
+[error] !!  functions: Failed to load function definition from source: FirebaseError: There was an error reading functions\package.json:
+
+ functions\lib\index.js does not exist, can't deploy Cloud Functions {"metadata":{"emulator":{"name":"functions"},"message":"Failed to load function definition from source: FirebaseError: There was an error reading functions\\package.json:\n\n functions\\lib\\index.js does not exist, can't deploy Cloud Functions"}}
+[debug] [2026-05-21T02:01:44.610Z] Could not find VSCode notification endpoint: FetchError: request to http://localhost:40001/vscode/notify failed, reason: . If you are not running the Firebase SQL Connect VSCode extension, this is expected and not an issue.
+[info] 
+┌─────────────────────────────────────────────────────────────┐
+│ ✔  All emulators ready! It is now safe to connect your app. │
+│ i  View Emulator UI at http://127.0.0.1:4000/               │
+└─────────────────────────────────────────────────────────────┘
+
+┌────────────────┬────────────────┬──────────────────────────────────┐
+│ Emulator       │ Host:Port      │ View in Emulator UI              │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Authentication │ 127.0.0.1:9099 │ http://127.0.0.1:4000/auth       │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Functions      │ 127.0.0.1:5001 │ http://127.0.0.1:4000/functions  │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Firestore      │ 127.0.0.1:8080 │ http://127.0.0.1:4000/firestore  │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Storage        │ 127.0.0.1:9199 │ http://127.0.0.1:4000/storage    │
+├────────────────┼────────────────┼──────────────────────────────────┤
+│ Extensions     │ 127.0.0.1:5001 │ http://127.0.0.1:4000/extensions │
+└────────────────┴────────────────┴──────────────────────────────────┘
+  Emulator Hub host: 127.0.0.1 port: 4400
+  Other reserved ports: 4500, 9150
+┌─────────────────────────┬───────────────┬─────────────────────┐
+│ Extension Instance Name │ Extension Ref │ View in Emulator UI │
+└─────────────────────────┴───────────────┴─────────────────────┘
+Issues? Report them at https://github.com/firebase/firebase-tools/issues and attach the *-debug.log files.
+ 
+[debug] [2026-05-21T03:18:12.429Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast [none]
+[debug] [2026-05-21T03:18:12.436Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast {"eventId":"364bf7c7-fbec-475b-b5c1-c0a2e4cbe7a0","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/tires-19d41","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-05-21T03:18:12.422Z","data":{"uid":"rzjx4fgppEiggUNcDWD2JsuRet3n","email":"hermes@test.com","emailVerified":false,"displayName":"hermes","photoURL":"","metadata":{"creationTime":"2026-05-21T03:18:12.416Z","lastSignInTime":"2026-05-21T03:18:12.416Z"},"customClaims":{},"providerData":[{"rawId":"hermes@test.com","providerId":"password","displayName":"hermes","email":"hermes@test.com","federatedId":"hermes@test.com","photoURL":""}],"mfaInfo":[]}}
+[debug] [2026-05-21T03:18:12.477Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast 200
+[debug] [2026-05-21T03:18:12.477Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast {"status":"multicast_acknowledged"}
+[debug] [2026-05-21T03:23:24.601Z] >>> [apiv2][query] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast [none]
+[debug] [2026-05-21T03:23:24.601Z] >>> [apiv2][body] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast {"eventId":"99846543-dcbc-4c74-98c8-b579af7e0f6a","eventType":"providers/firebase.auth/eventTypes/user.create","resource":{"name":"projects/tires-19d41","service":"firebaseauth.googleapis.com"},"params":{},"timestamp":"2026-05-21T03:23:24.601Z","data":{"uid":"PiRMkifPwK5P4OaEaAmXb148CSEu","email":"biozon@test.com","emailVerified":false,"displayName":"biozon","photoURL":"","metadata":{"creationTime":"2026-05-21T03:23:24.600Z","lastSignInTime":"2026-05-21T03:23:24.600Z"},"customClaims":{},"providerData":[{"rawId":"biozon@test.com","providerId":"password","displayName":"biozon","email":"biozon@test.com","federatedId":"biozon@test.com","photoURL":""}],"mfaInfo":[]}}
+[debug] [2026-05-21T03:23:24.606Z] <<< [apiv2][status] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast 200
+[debug] [2026-05-21T03:23:24.606Z] <<< [apiv2][body] POST http://127.0.0.1:5001/functions/projects/tires-19d41/trigger_multicast {"status":"multicast_acknowledged"}
+[info] i  firestore: Change detected, updating rules... 
+[debug] [2026-05-21T03:52:28.237Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules [none]
+[debug] [2026-05-21T03:52:28.238Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules {"ignore_errors":true,"rules":{"files":[{"name":"security.rules","content":"rules_version = '2';\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n    \r\n    // Función auxiliar para obtener el perfil del usuario que está haciendo la consulta\r\n    function getUserData() {\r\n      return get(/$(database)/documents/users/$(request.auth.uid)).data;\r\n    }\r\n\r\n    // Regla para la colección de llantas\r\n    match /tires/{tireId} {\r\n      // Un usuario solo puede leer o escribir si está autenticado Y su companyId coincide con el de la llanta\r\n      allow read, write: if request.auth != null \r\n                          && resource.data.companyId == getUserData().companyId;\r\n                          \r\n      // Regla para permitir la creación si el usuario se asigna su propio companyId\r\n      allow create: if request.auth != null \r\n                     && request.resource.data.companyId == getUserData().companyId;\r\n    }\r\n\r\n    // Regla para la colección de camiones\r\n    match /trucks/{truckId} {\r\n      allow read, write: if request.auth != null \r\n                          && resource.data.companyId == getUserData().companyId;\r\n      allow create: if request.auth != null \r\n                     && request.resource.data.companyId == getUserData().companyId;\r\n    }\r\n  }\r\n}"}]}}
+[debug] [2026-05-21T03:52:28.711Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules 200
+[debug] [2026-05-21T03:52:28.711Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules {}
+[info] +  firestore: Rules updated. 
+[info] i  firestore: Change detected, updating rules... 
+[debug] [2026-05-21T03:52:35.448Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules [none]
+[debug] [2026-05-21T03:52:35.448Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules {"ignore_errors":true,"rules":{"files":[{"name":"security.rules","content":"rules_version = '2';\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n    \r\n    // Función auxiliar para obtener el perfil del usuario que está haciendo la consulta\r\n    function getUserData() {\r\n      return get(/$(database)/documents/users/$(request.auth.uid)).data;\r\n    }\r\n\r\n    // Regla para la colección de llantas\r\n    match /tires/{tireId} {\r\n      // Un usuario solo puede leer o escribir si está autenticado Y su companyId coincide con el de la llanta\r\n      allow read, write: if request.auth != null \r\n                          && resource.data.companyId == getUserData().companyId;\r\n                          \r\n      // Regla para permitir la creación si el usuario se asigna su propio companyId\r\n      allow create: if request.auth != null \r\n                     && request.resource.data.companyId == getUserData().companyId;\r\n    }\r\n\r\n    // Regla para la colección de camiones\r\n    match /trucks/{truckId} {\r\n      allow read, write: if request.auth != null \r\n                          && resource.data.companyId == getUserData().companyId;\r\n      allow create: if request.auth != null \r\n                     && request.resource.data.companyId == getUserData().companyId;\r\n    }\r\n  }\r\n}"}]}}
+[debug] [2026-05-21T03:52:35.562Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules 200
+[debug] [2026-05-21T03:52:35.562Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules {}
+[info] +  firestore: Rules updated. 
+[info] i  firestore: Change detected, updating rules... 
+[debug] [2026-05-21T03:58:09.546Z] >>> [apiv2][query] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules [none]
+[debug] [2026-05-21T03:58:09.547Z] >>> [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules {"ignore_errors":true,"rules":{"files":[{"name":"security.rules","content":"rules_version = '2';\r\n\r\nservice cloud.firestore {\r\n  match /databases/{database}/documents {\r\n\r\n    // This rule allows anyone with your Firestore database reference to view, edit,\r\n    // and delete all data in your Firestore database. It is useful for getting\r\n    // started, but it is configured to expire after 30 days because it\r\n    // leaves your app open to attackers. At that time, all client\r\n    // requests to your Firestore database will be denied.\r\n    //\r\n    // Make sure to write security rules for your app before that time, or else\r\n    // all client requests to your Firestore database will be denied until you Update\r\n    // your rules\r\n    match /{document=**} {\r\n      allow read, write: if true;\r\n    }\r\n  }\r\n}"}]}}
+[debug] [2026-05-21T03:58:09.574Z] <<< [apiv2][status] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules 200
+[debug] [2026-05-21T03:58:09.575Z] <<< [apiv2][body] PUT http://127.0.0.1:8080/emulator/v1/projects/tires-19d41:securityRules {}
+[info] +  firestore: Rules updated. 

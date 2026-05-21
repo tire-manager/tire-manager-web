@@ -46,13 +46,13 @@ import { getWarehouses, Warehouse } from "@/services/warehouseService";
 import { Truck as TruckType } from "@/types/truck";
 import { Tire, TireHistory } from "@/types/tire";
 import TruckVisualizer from "@/components/trucks/TruckVisualizer";
-import { EditTruckModal } from "@/components/trucks/EditTruckModal";
 import { generateTruckTechnicalReportPDF } from "@/lib/utils/exportPDF";
 import { generateInspectionReportPDF } from "@/lib/utils/exportInspectionPDF"; // <-- NUEVO REPORTE DE EVENTOS
 import toast from "react-hot-toast";
 import * as htmlToImage from "html-to-image";
 import { TruckHistoryLog } from "../../../../components/trucks/TruckHistoryLog";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuth } from "@/context/AuthContext";
+import { MassInspectionModal } from "@/components/trucks/MassInspectionModal";
 
 const CHART_COLORS = [
   "#2563eb",
@@ -68,7 +68,7 @@ const CHART_COLORS = [
 ];
 
 export default function TruckProfilePage() {
-  const { userId } = useAuth();
+  const { user } = useAuth();
 
   const params = useParams();
   const [truck, setTruck] = useState<TruckType | null>(null);
@@ -96,6 +96,9 @@ export default function TruckProfilePage() {
   const [pastTires, setPastTires] = useState<Tire[]>([]);
 
   const [photoFile, setPhotoFile] = useState<File | null>(null);
+
+  const [isMassInspectionModalOpen, setIsMassInspectionModalOpen] =
+    useState(false);
 
   // <-- ESTADOS PARA LA BITÁCORA PAGINADA -->
   const [historyEvents, setHistoryEvents] = useState<TireHistory[]>([]);
@@ -269,7 +272,7 @@ export default function TruckProfilePage() {
       await unmountTire(
         selectedTire.id,
         unmountData.warehouseId,
-        userId || "SYSTEM",
+        user?.uid || "SYSTEM",
         unmountData.currentOdometer,
         unmountData.currentTreadDepth,
         unmountData.reason,
@@ -439,6 +442,12 @@ export default function TruckProfilePage() {
                   <ClipboardCheck className="w-4 h-4" />
                   Acta de Última Inspección
                 </button> */}
+                <button
+                  onClick={() => setIsMassInspectionModalOpen(true)}
+                  className="flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl text-sm font-bold hover:bg-emerald-700 transition-colors shadow-sm"
+                >
+                  <Activity className="w-4 h-4" /> Digitar Hoja Inspección
+                </button>
                 <button
                   onClick={() => {
                     setIsHeaderMenuOpen(false);
@@ -932,14 +941,17 @@ export default function TruckProfilePage() {
         </div>
       )}
 
-      {truck && (
-        <EditTruckModal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onSuccess={loadData}
-          truck={truck}
-        />
-      )}
+      <MassInspectionModal
+        isOpen={isMassInspectionModalOpen}
+        onClose={() => setIsMassInspectionModalOpen(false)}
+        onSuccess={() => {
+          // Aquí llamas a tu función que recarga los datos (ej. fetchTruckAndTires o loadData)
+          // para que la vista del camión se actualice sola después de guardar
+          // fetchTruckAndTires();
+        }}
+        truck={truck}
+        mountedTires={truckTires} // Asegúrate de pasarle las llantas instaladas actualmente
+      />
     </div>
   );
 }

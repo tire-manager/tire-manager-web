@@ -11,27 +11,25 @@ import {
   LayoutGrid,
   List,
   Truck as TruckIcon,
-  Settings2,
-  Gauge,
-  User,
   X,
 } from "lucide-react";
 import { Truck } from "@/types/truck";
 import { getPaginatedTrucks, updateTruck } from "@/services/truckService";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
 
 interface TrucksTableProps {
-  driverMap: Record<string, string>;
   onEditTruck: (truck: Truck) => void;
   onRefreshNeeded: () => void;
 }
 
 export const TrucksTable: React.FC<TrucksTableProps> = ({
-  driverMap,
   onEditTruck,
   onRefreshNeeded,
 }) => {
+  const { profile } = useAuth();
+
   const [trucks, setTrucks] = useState<Truck[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -54,9 +52,11 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
     currentStatus: string,
     currentSize: number,
   ) => {
+    if (!profile?.companyId) return;
     setLoading(true);
     try {
       const { trucks: newTrucks, lastVisible } = await getPaginatedTrucks(
+        profile.companyId,
         currentSize,
         cursors[cursorIdx],
         currentStatus,
@@ -88,7 +88,7 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
     }, 500);
     return () => clearTimeout(delay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchTerm, statusFilter, pageSize]);
+  }, [searchTerm, statusFilter, pageSize, profile?.companyId]);
 
   // Efecto único para botones de paginación (Siguiente/Anterior)
   useEffect(() => {
@@ -100,8 +100,6 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
 
   const handleDeactivateClick = async (truck: Truck) => {
     if (truck.status === "INACTIVE") return toast.error("Ya está inactivo.");
-    if (truck.assignedDriverId)
-      return toast.error("Desasigna al chofer primero.");
 
     if (window.confirm(`¿Dar de baja la unidad ${truck.licensePlate}?`)) {
       setLoading(true);
@@ -161,7 +159,7 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400 w-5 h-5" />
           <input
             type="text"
-            placeholder="Buscar por placa (Ej. W7A)..."
+            placeholder="Buscar por placa (Ej. ABC-123)..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-bold"
@@ -294,7 +292,7 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100 text-center truncate">
                     <p className="text-[10px] font-bold text-slate-400 uppercase">
-                      KM
+                      KM Totales
                     </p>
                     <p className="text-xs font-mono font-bold text-emerald-600">
                       {(truck.currentOdometer || 0).toLocaleString()}
@@ -302,22 +300,12 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
                   </div>
                 </div>
 
-                <div className="mt-auto pt-4 border-t border-slate-100 flex justify-between items-center text-sm">
-                  <div className="flex items-center gap-2 text-slate-600 truncate pr-2">
-                    <User className="w-4 h-4 shrink-0" />
-                    <span
-                      className={`truncate ${truck.assignedDriverId ? "font-bold text-slate-900" : "italic text-slate-400"}`}
-                    >
-                      {truck.assignedDriverId
-                        ? driverMap[truck.assignedDriverId] || "Asignado"
-                        : "Sin chofer"}
-                    </span>
-                  </div>
+                <div className="mt-auto pt-4 border-t border-slate-100 flex justify-end items-center text-sm">
                   <Link
                     href={`/admin/trucks/${truck.id}`}
-                    className="text-blue-600 hover:text-blue-800 font-bold text-[10px] hover:underline uppercase shrink-0"
+                    className="text-blue-600 hover:text-blue-800 font-bold text-[11px] hover:underline uppercase shrink-0"
                   >
-                    Detalles
+                    Ver Detalles Completos
                   </Link>
                 </div>
               </div>
@@ -336,7 +324,6 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
                   <th className="px-6 py-4">Odómetro</th>
                   <th className="px-6 py-4">Ejes</th>
                   <th className="px-6 py-4">Estado</th>
-                  <th className="px-6 py-4">Chofer</th>
                   <th className="px-6 py-4 text-right">Acciones</th>
                 </tr>
               </thead>
@@ -375,17 +362,6 @@ export const TrucksTable: React.FC<TrucksTableProps> = ({
                       </td>
                       <td className="px-6 py-4">
                         {getStatusBadge(truck.status)}
-                      </td>
-                      <td className="px-6 py-4 text-slate-600 font-medium text-xs">
-                        {truck.assignedDriverId ? (
-                          <span className="font-black text-slate-900 uppercase">
-                            {driverMap[truck.assignedDriverId] || "Asignado"}
-                          </span>
-                        ) : (
-                          <span className="text-slate-400 italic">
-                            En Patio
-                          </span>
-                        )}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity">

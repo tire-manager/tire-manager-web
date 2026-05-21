@@ -5,14 +5,16 @@ import { Plus, Download, ChevronDown } from "lucide-react";
 import { getTrucks } from "@/services/truckService";
 import { Truck } from "@/types/truck";
 import { Tire } from "@/types/tire";
-import { AddTireModal } from "@/components/inventory/AddTireModal";
-import { EditTireModal } from "@/components/inventory/EditTireModal";
 import { InventoryTable } from "@/components/inventory/InventoryTable";
 import { exportTiresToCSV } from "@/lib/utils/exportCSV";
 import { getInventory } from "@/services/tireService";
 import toast from "react-hot-toast";
+import { TireFormModal } from "@/components/inventory/TireFormModal";
+import { useAuth } from "@/context/AuthContext";
 
 export default function InventoryPage() {
+  const { profile } = useAuth();
+
   const [truckMap, setTruckMap] = useState<Record<string, string>>({});
 
   // Modales
@@ -29,7 +31,7 @@ export default function InventoryPage() {
   useEffect(() => {
     const loadTrucks = async () => {
       try {
-        const trucksData = await getTrucks();
+        const trucksData = await getTrucks(profile?.companyId || "");
         const map: Record<string, string> = {};
         trucksData.forEach((t: Truck) => {
           map[t.id] = t.licensePlate;
@@ -109,18 +111,15 @@ export default function InventoryPage() {
         onRefreshNeeded={() => setRefreshKey((k) => k + 1)}
       />
 
-      {/* MODALES */}
-      <AddTireModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+      <TireFormModal
+        isOpen={isAddModalOpen || isEditModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setIsEditModalOpen(false);
+          setSelectedTire(null); // Limpiamos la selección
+        }}
         onSuccess={() => setRefreshKey((k) => k + 1)}
-      />
-
-      <EditTireModal
-        isOpen={isEditModalOpen}
-        onClose={() => setIsEditModalOpen(false)}
-        onSuccess={() => setRefreshKey((k) => k + 1)}
-        tire={selectedTire}
+        tire={isEditModalOpen ? selectedTire : null}
       />
     </div>
   );

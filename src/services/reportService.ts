@@ -18,21 +18,26 @@ export interface TireProjection {
   statusText: string;
 }
 
-export const generateProjectionsData = async () => {
-  // 1. Consultas optimizadas: Solo llantas y camiones activos
+export const generateProjectionsData = async (companyId: string) => {
   const tiresRef = collection(db, "tires");
   const trucksRef = collection(db, "trucks");
 
-  const inUseTiresQuery = query(tiresRef, where("status", "==", "IN_USE"));
+  // FILTRO SAAS
+  const inUseTiresQuery = query(
+    tiresRef,
+    where("companyId", "==", companyId),
+    where("status", "==", "IN_USE"),
+  );
   const activeTrucksQuery = query(
     trucksRef,
+    where("companyId", "==", companyId),
     where("status", "in", ["ACTIVE", "IN_MAINTENANCE"]),
   );
 
   const [tiresSnapshot, trucksSnapshot, config] = await Promise.all([
     getDocs(inUseTiresQuery),
     getDocs(activeTrucksQuery),
-    getGlobalSettings(),
+    getGlobalSettings(companyId), // Pasamos la empresa para leer sus límites de desgaste
   ]);
 
   const tires = tiresSnapshot.docs.map(
@@ -46,11 +51,9 @@ export const generateProjectionsData = async () => {
   const brandModelAverages: Record<string, { totalKm: number; count: number }> =
     {};
 
-  // 2. Procesamiento Matemático
   tires.forEach((tire) => {
     if (tire.truckId && tire.price && tire.initialOdometer) {
       const truck = trucks.find((t) => t.id === tire.truckId);
-
       if (
         truck &&
         truck.currentOdometer &&
@@ -66,7 +69,6 @@ export const generateProjectionsData = async () => {
         if (mmWorn > 0) {
           const kmPerMm = kmRun / mmWorn;
           const usefulTread = originalDepth - criticalLimit;
-
           const projectedKm = kmPerMm * usefulTread;
           const costPerKm = tire.price / projectedKm;
           const wearPercentage = (mmWorn / originalDepth) * 100;
@@ -85,9 +87,8 @@ export const generateProjectionsData = async () => {
           });
 
           const groupKey = `${tire.brand} ${tire.model}`;
-          if (!brandModelAverages[groupKey]) {
+          if (!brandModelAverages[groupKey])
             brandModelAverages[groupKey] = { totalKm: 0, count: 0 };
-          }
           brandModelAverages[groupKey].totalKm += projectedKm;
           brandModelAverages[groupKey].count += 1;
         }
@@ -96,8 +97,6 @@ export const generateProjectionsData = async () => {
   });
 
   calculatedProjections.sort((a, b) => b.projectedKm - a.projectedKm);
-
-  // 3. Formateo de datos para el gráfico
   const chartData = Object.keys(brandModelAverages)
     .map((key) => ({
       name: key,

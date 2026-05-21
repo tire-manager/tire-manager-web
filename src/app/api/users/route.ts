@@ -6,13 +6,16 @@ import { UserRole } from "@/types/user";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    // <-- Agregamos 'status' a la desestructuración
-    const { email, password, displayName, role, truckId, status } = body;
+    // <-- Agregamos 'companyId' a la desestructuración y quitamos 'truckId'
+    const { email, password, displayName, role, status, companyId } = body;
 
-    // 1. Validaciones básicas
-    if (!email || !password || !displayName || !role) {
+    // 1. Validaciones básicas estrictas (SaaS)
+    if (!email || !password || !displayName || !role || !companyId) {
       return NextResponse.json(
-        { error: "Faltan campos requeridos (email, contraseña, nombre o rol)" },
+        {
+          error:
+            "Faltan campos requeridos (email, contraseña, nombre, rol o empresa)",
+        },
         { status: 400 },
       );
     }
@@ -30,8 +33,8 @@ export async function POST(request: Request) {
       email: userRecord.email,
       displayName: userRecord.displayName,
       role: role as UserRole,
-      status: status || "ACTIVE", // <-- AHORA SÍ GUARDAMOS EL ESTADO
-      truckId: truckId || null,
+      status: status || "ACTIVE",
+      companyId: companyId, // <-- MAGIA SAAS: El usuario queda blindado a su empresa
       createdAt: Date.now(),
     };
 

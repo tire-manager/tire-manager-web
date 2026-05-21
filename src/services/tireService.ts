@@ -19,15 +19,12 @@ import {
 import { Tire, TireHistory } from "@/types/tire";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 
-// --- FUNCIÓN INTERNA DE APOYO ---
 const addTireHistoryEvent = async (event: any) => {
-  await addDoc(collection(db, "tire_history"), {
+  await addDoc(collection(db, "tireHistory"), {
     ...event,
     date: serverTimestamp(),
   });
 };
-
-// --- SERVICIOS DE INSPECCIÓN ---
 
 export const registerInspection = async (inspectionData: any) => {
   try {
@@ -60,21 +57,20 @@ export const registerInspection = async (inspectionData: any) => {
 
 export const recordMassInspection = async (
   truckId: string,
-  driverId: string,
+  driverId: string, // En este caso será el inspectorId
   currentOdometer: number,
   inspections: {
     tireId: string;
     newTreadDepth: number;
+    pressure: number; // <-- NUEVO CAMPO
     notes: string;
   }[],
 ) => {
   try {
     const batch = writeBatch(db);
 
-    // 1. Actualizar el odómetro del camión
     batch.update(doc(db, "trucks", truckId), { currentOdometer });
 
-    // 2. Procesar cada llanta e insertar en TIRE_HISTORY
     for (const insp of inspections) {
       const tireRef = doc(db, "tires", insp.tireId);
       batch.update(tireRef, {
@@ -82,13 +78,13 @@ export const recordMassInspection = async (
         lastInspectionDate: serverTimestamp(),
       });
 
-      // Nota: addDoc no funciona en batches, usamos doc(collection) y batch.set
-      const newHistoryRef = doc(collection(db, "tire_history"));
+      const newHistoryRef = doc(collection(db, "tireHistory"));
       batch.set(newHistoryRef, {
         tireId: insp.tireId,
         truckId,
         driverId,
         newTreadDepth: insp.newTreadDepth,
+        pressure: insp.pressure, // <-- LO GUARDAMOS EN EL HISTORIAL
         currentOdometer,
         notes: insp.notes,
         type: "INSPECTION",
@@ -104,16 +100,15 @@ export const recordMassInspection = async (
   }
 };
 
-// --- SERVICIOS DE INVENTARIO Y MOVIMIENTOS ---
-
 export const getInventory = async (): Promise<Tire[]> => {
   const snapshot = await getDocs(collection(db, "tires"));
   return snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() })) as Tire[];
 };
 
-export const addTire = async (data: any) => {
+export const addTire = async (data: any, companyId: string) => {
   const docRef = await addDoc(collection(db, "tires"), {
     ...data,
+    companyId, // <-- GUARDA LA EMPRESA
     status: "AVAILABLE",
     createdAt: serverTimestamp(),
   });
@@ -147,11 +142,6 @@ export const assignTireToTruck = async (
 
   return { success: true };
 };
-
-// src/services/tireService.ts
-
-// En src/services/tireService.ts
-// Asegúrate de tener importado 'getDoc' de firebase/firestore en la parte superior
 
 export const unmountTire = async (
   tireId: string,
@@ -193,7 +183,7 @@ export const unmountTire = async (
     });
 
     // 2. Guardamos la auditoría exacta en el Historial
-    const historyRef = collection(db, "tire_history");
+    const historyRef = collection(db, "tireHistory");
     await addDoc(historyRef, {
       tireId,
       truckId: tireData.truckId, // Guardamos de qué camión salió
@@ -211,13 +201,11 @@ export const unmountTire = async (
   }
 };
 
-// --- CONSULTAS DE HISTORIAL ---
-
 export const getTireHistory = async (tireId: string) => {
   try {
-    // CAMBIO CLAVE: Ahora consulta tire_history para ver todo (inspecciones y desmontajes)
+    // CAMBIO CLAVE: Ahora consulta tireHistory para ver todo (inspecciones y desmontajes)
     const q = query(
-      collection(db, "tire_history"),
+      collection(db, "tireHistory"),
       where("tireId", "==", tireId),
       orderBy("date", "desc"),
     );
@@ -429,7 +417,7 @@ export const getTruckInspectionHistory = async (
 
     constraints.push(limit(pageSize));
 
-    const q = query(collection(db, "tire_history"), ...constraints);
+    const q = query(collection(db, "tireHistory"), ...constraints);
     const snapshot = await getDocs(q);
 
     const events = snapshot.docs.map((doc) => ({
@@ -454,14 +442,14 @@ export const getTruckInspectionHistory = async (
 // Asegúrate de importar esto arriba: import { query, where, orderBy, limit, startAfter } from "firebase/firestore";
 
 export const getPaginatedInventory = async (
+  companyId: string, // <-- NUEVO PARÁMETRO
   pageSize: number,
   lastVisible?: any,
   statusFilter?: string,
   searchTerm?: string,
 ) => {
   try {
-    let constraints: any[] = [];
-
+    let constraints: any[] = [where("companyId", "==", companyId)];
     // Filtro por estado
     if (statusFilter && statusFilter !== "ALL") {
       constraints.push(where("status", "==", statusFilter));

@@ -1,94 +1,118 @@
-// src/components/trucks/AddTruckModal.tsx
+// src/components/trucks/TruckFormModal.tsx
 "use client";
 import React, { useState, useEffect } from "react";
-import { X, Truck as TruckIcon, User } from "lucide-react";
-import { addTruck, assignDriverToTruck } from "@/services/truckService";
-import { getDrivers } from "@/services/userService";
+import { X, Truck as TruckIcon, Edit2 } from "lucide-react";
+import { addTruck, updateTruck } from "@/services/truckService";
 import { getGlobalSettings, GlobalSettings } from "@/services/settingsService";
+import { useAuth } from "@/context/AuthContext";
+import { Truck } from "@/types/truck";
 import toast from "react-hot-toast";
-import { UserProfile } from "@/types/user";
 
-interface AddTruckModalProps {
+interface TruckFormModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  truck?: Truck | null; // Si enviamos el camión, es MODO EDICIÓN. Si es null, es MODO CREACIÓN.
 }
 
-export const AddTruckModal: React.FC<AddTruckModalProps> = ({
+export const TruckFormModal: React.FC<TruckFormModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
+  truck,
 }) => {
+  const { profile } = useAuth(); // <-- Obtenemos la empresa del Admin logueado
+
   const [loading, setLoading] = useState(false);
-  const [drivers, setDrivers] = useState<UserProfile[]>([]);
   const [config, setConfig] = useState<GlobalSettings | null>(null);
+
+  const isEditMode = !!truck;
 
   const [formData, setFormData] = useState({
     licensePlate: "",
     brand: "",
     model: "",
     year: new Date().getFullYear(),
-    status: "ACTIVE" as "ACTIVE" | "IN_MAINTENANCE" | "INACTIVE",
-    assignedDriverId: "",
-    axleConfig: "3_EJES_10_LLANTAS" as
-      | "2_EJES"
-      | "3_EJES_10_LLANTAS"
-      | "3_EJES_BALON"
-      | "3_EJES_12_LLANTAS"
-      | "4_EJES",
-    initialOdometer: "",
+    status: "ACTIVE" as Truck["status"],
+    axleConfig: "3_EJES_10_LLANTAS" as Truck["axleConfig"],
+    initialOdometer: "", // Solo se usa al crear
   });
 
-  // Cargar lista de choferes y catálogo de vehículos al abrir el modal
   useEffect(() => {
     if (isOpen) {
-      getDrivers().then(setDrivers);
-      getGlobalSettings().then(setConfig);
+      getGlobalSettings(profile?.companyId as string).then(setConfig);
+
+      // Si estamos en modo edición, precargamos los datos
+      if (truck) {
+        setFormData({
+          licensePlate: truck.licensePlate,
+          brand: truck.brand || "",
+          model: truck.model || "",
+          year: truck.year,
+          status: truck.status,
+          axleConfig: truck.axleConfig || "3_EJES_10_LLANTAS",
+          initialOdometer: truck.currentOdometer?.toString() || "0",
+        });
+      } else {
+        // Si es creación, limpiamos el formulario
+        setFormData({
+          licensePlate: "",
+          brand: "",
+          model: "",
+          year: new Date().getFullYear(),
+          status: "ACTIVE",
+          axleConfig: "3_EJES_10_LLANTAS",
+          initialOdometer: "",
+        });
+      }
     }
-  }, [isOpen]);
+  }, [isOpen, truck]);
 
   if (!isOpen) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
+    console.log("Submitting form with data:", profile, formData); // <-- Debugging
     e.preventDefault();
+    if (!profile?.companyId)
+      return toast.error("Error crítico: Empresa no identificada");
+
     setLoading(true);
+    const toastId = toast.loading(
+      isEditMode ? "Actualizando vehículo..." : "Registrando vehículo...",
+    );
 
     try {
-      const newTruckResponse = await addTruck({
+      const truckData = {
         licensePlate: formData.licensePlate.toUpperCase(),
         brand: formData.brand.toUpperCase(),
         model: formData.model.toUpperCase(),
         year: formData.year,
         status: formData.status,
         axleConfig: formData.axleConfig,
-        currentOdometer: parseFloat(formData.initialOdometer) || 0,
-        assignedDriverId: formData.assignedDriverId || null,
-      });
+      };
 
-      if (formData.assignedDriverId && newTruckResponse?.id) {
-        await assignDriverToTruck(
-          newTruckResponse.id,
-          formData.assignedDriverId,
-        );
+      if (isEditMode) {
+        // EDICIÓN
+        await updateTruck(truck.id, truckData);
+        toast.success("Vehículo actualizado con éxito", { id: toastId });
+      } else {
+        // CREACIÓN (Inyectamos companyId y Odómetro Inicial)
+        await addTruck({
+          ...truckData,
+          companyId: profile.companyId, // <-- Magia SaaS Multi-empresa
+          currentOdometer: parseFloat(formData.initialOdometer) || 0,
+          assignedDriverId: null, // Ya no usamos choferes
+        });
+        toast.success("Vehículo registrado con éxito", { id: toastId });
       }
 
-      toast.success("¡Camión registrado exitosamente!");
       onSuccess();
       onClose();
-
-      setFormData({
-        licensePlate: "",
-        brand: "",
-        model: "",
-        year: new Date().getFullYear(),
-        status: "ACTIVE",
-        assignedDriverId: "",
-        axleConfig: "3_EJES_10_LLANTAS",
-        initialOdometer: "",
-      });
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Error al registrar el camión.");
+      toast.error(err.message || "Error al procesar la solicitud.", {
+        id: toastId,
+      });
     } finally {
       setLoading(false);
     }
@@ -97,13 +121,20 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
+        {/* CABECERA DINÁMICA */}
         <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
           <div className="flex items-center gap-3">
-            <div className="bg-blue-100 p-2 rounded-xl text-blue-600">
-              <TruckIcon className="w-5 h-5" />
+            <div
+              className={`p-2 rounded-xl ${isEditMode ? "bg-amber-100 text-amber-600" : "bg-blue-100 text-blue-600"}`}
+            >
+              {isEditMode ? (
+                <Edit2 className="w-5 h-5" />
+              ) : (
+                <TruckIcon className="w-5 h-5" />
+              )}
             </div>
             <h2 className="text-xl font-black text-slate-800">
-              Registrar Vehículo
+              {isEditMode ? "Editar Vehículo" : "Registrar Vehículo"}
             </h2>
           </div>
           <button
@@ -129,12 +160,11 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
                   licensePlate: e.target.value.toUpperCase(),
                 })
               }
-              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-black text-slate-900 placeholder:normal-case placeholder:font-medium"
+              className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none uppercase font-black text-slate-900"
               placeholder="Ej: ABC-1234"
             />
           </div>
 
-          {/* MENÚS EN CASCADA: MARCA Y MODELO */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">
@@ -200,7 +230,7 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
             </div>
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">
-                Estado Inicial
+                Estado
               </label>
               <select
                 value={formData.status}
@@ -219,22 +249,6 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">
-                Odómetro (KM)
-              </label>
-              <input
-                type="number"
-                required
-                min="0"
-                value={formData.initialOdometer}
-                onChange={(e) =>
-                  setFormData({ ...formData, initialOdometer: e.target.value })
-                }
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-mono font-bold"
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">
                 Config. de Ejes
               </label>
               <select
@@ -246,47 +260,41 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
                     axleConfig: e.target.value as any,
                   })
                 }
-                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium"
+                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-medium text-xs"
               >
-                <option value="2_EJES">UNIDAD 2 EJE</option>
+                <option value="2_EJES">2 EJES</option>
                 <option value="3_EJES_10_LLANTAS">3 EJES (10 Llantas)</option>
-                <option value="3_EJES_BALON">3 EJES BALON</option>
+                <option value="3_EJES_BALON">3 EJES BALÓN</option>
                 <option value="3_EJES_12_LLANTAS">3 EJES (12 Llantas)</option>
-                <option value="4_EJES">UNIDAD DE 4 EJES</option>
+                <option value="4_EJES">4 EJES</option>
               </select>
             </div>
+
+            {/* Solo mostramos el Odómetro inicial si estamos CREANDO un camión */}
+            {!isEditMode && (
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">
+                  Odómetro (KM)
+                </label>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  value={formData.initialOdometer}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      initialOdometer: e.target.value,
+                    })
+                  }
+                  className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none font-mono font-bold"
+                  placeholder="Ej: 15000"
+                />
+              </div>
+            )}
           </div>
 
-          <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
-            <label className="block text-sm font-black text-blue-900 mb-2 flex items-center gap-2">
-              <User className="w-4 h-4" /> Chofer Asignado (Opcional)
-            </label>
-            <select
-              value={formData.assignedDriverId}
-              onChange={(e) =>
-                setFormData({ ...formData, assignedDriverId: e.target.value })
-              }
-              className="w-full p-3 bg-white border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none font-bold text-slate-700"
-            >
-              <option value="">-- Dejar en Patio (Sin Chofer) --</option>
-              {drivers.map((driver) => {
-                const isBusy = !!driver.truckId;
-                return (
-                  <option
-                    key={driver.uid}
-                    value={driver.uid}
-                    disabled={isBusy} // Bloquea si ya tiene camión
-                  >
-                    {driver.displayName}{" "}
-                    {isBusy
-                      ? `(En ruta con ${driver.truckId})`
-                      : "(Disponible)"}
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
+          {/* BOTONES ACCIÓN */}
           <div className="pt-2 flex gap-3">
             <button
               type="button"
@@ -298,9 +306,13 @@ export const AddTruckModal: React.FC<AddTruckModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="flex-1 px-4 py-3 text-white bg-blue-600 hover:bg-blue-700 font-black rounded-xl shadow-lg shadow-blue-600/30 transition-all disabled:opacity-50 flex justify-center items-center"
+              className={`flex-1 px-4 py-3 text-white font-black rounded-xl shadow-lg transition-all disabled:opacity-50 flex justify-center items-center ${isEditMode ? "bg-amber-600 hover:bg-amber-700 shadow-amber-600/30" : "bg-blue-600 hover:bg-blue-700 shadow-blue-600/30"}`}
             >
-              {loading ? "Registrando..." : "Registrar Camión"}
+              {loading
+                ? "Procesando..."
+                : isEditMode
+                  ? "Guardar Cambios"
+                  : "Registrar Camión"}
             </button>
           </div>
         </form>

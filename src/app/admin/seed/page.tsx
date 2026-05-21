@@ -122,7 +122,7 @@ export default function SeedPage() {
 
         // Insertar el historial para formar la gráfica
         for (const point of historyPoints) {
-          const historyRef = doc(collection(db, "tire_history"));
+          const historyRef = doc(collection(db, "tireHistory"));
           batch.set(historyRef, {
             tireId: tire.id,
             truckId: truckId,

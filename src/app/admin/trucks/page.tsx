@@ -1,17 +1,12 @@
 // src/app/admin/trucks/page.tsx
 "use client";
-import React, { useEffect, useState } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
-import { getDrivers } from "@/services/userService";
 import { Truck } from "@/types/truck";
-import { AddTruckModal } from "@/components/trucks/AddTruckModal";
-import { EditTruckModal } from "@/components/trucks/EditTruckModal";
 import { TrucksTable } from "@/components/trucks/TrucksTable";
-import toast from "react-hot-toast";
+import { TruckFormModal } from "@/components/trucks/TruckFormModal";
 
 export default function TrucksPage() {
-  const [driverMap, setDriverMap] = useState<Record<string, string>>({});
-
   // Modales
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -19,22 +14,6 @@ export default function TrucksPage() {
 
   // Key para forzar actualización de la tabla tras crear/editar
   const [refreshKey, setRefreshKey] = useState(0);
-
-  useEffect(() => {
-    const loadDrivers = async () => {
-      try {
-        const driversData = await getDrivers();
-        const dMap: Record<string, string> = {};
-        driversData.forEach((d) => {
-          dMap[d.uid] = d.displayName;
-        });
-        setDriverMap(dMap);
-      } catch (error) {
-        toast.error("Error al cargar choferes");
-      }
-    };
-    loadDrivers();
-  }, []);
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -60,7 +39,6 @@ export default function TrucksPage() {
       {/* COMPONENTE INTELIGENTE */}
       <TrucksTable
         key={refreshKey}
-        driverMap={driverMap}
         onEditTruck={(truck) => {
           setSelectedTruck(truck);
           setIsEditModalOpen(true);
@@ -68,21 +46,17 @@ export default function TrucksPage() {
         onRefreshNeeded={() => setRefreshKey((k) => k + 1)}
       />
 
-      {/* MODALES */}
-      <AddTruckModal
-        isOpen={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
+      <TruckFormModal
+        isOpen={isAddModalOpen || isEditModalOpen}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setIsEditModalOpen(false);
+          // Al cerrar, limpiamos el camión seleccionado para que el próximo modal se abra vacío
+          setSelectedTruck(null);
+        }}
         onSuccess={() => setRefreshKey((k) => k + 1)}
+        truck={isEditModalOpen ? selectedTruck : null}
       />
-
-      {selectedTruck && (
-        <EditTruckModal
-          isOpen={isEditModalOpen}
-          onClose={() => setIsEditModalOpen(false)}
-          onSuccess={() => setRefreshKey((k) => k + 1)}
-          truck={selectedTruck}
-        />
-      )}
     </div>
   );
 }

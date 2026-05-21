@@ -14,20 +14,23 @@ import {
   query,
   startAfter,
   where,
+  getCountFromServer,
 } from "firebase/firestore";
 import { Truck } from "@/types/truck";
 
-export const getTrucks = async (): Promise<Truck[]> => {
+export const getTrucks = async (companyId: string): Promise<Truck[]> => {
   try {
-    const trucksRef = collection(db, "trucks");
-    const snapshot = await getDocs(trucksRef);
-
+    // FILTRO SAAS
+    const q = query(
+      collection(db, "trucks"),
+      where("companyId", "==", companyId),
+    );
+    const snapshot = await getDocs(q);
     return snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
     })) as Truck[];
   } catch (error) {
-    console.error("Error al obtener camiones:", error);
     return [];
   }
 };
@@ -109,19 +112,15 @@ export const assignDriverToTruck = async (
   }
 };
 
-// src/services/truckService.ts
-// Asegúrate de importar esto arriba si no lo tienes:
-// import { collection, query, where, orderBy, limit, startAfter, getDocs } from "firebase/firestore";
-
 export const getPaginatedTrucks = async (
+  companyId: string, // <-- NUEVO PARÁMETRO
   pageSize: number,
   lastVisible?: any,
   statusFilter?: string,
   searchTerm?: string,
 ) => {
   try {
-    let constraints: any[] = [];
-
+    let constraints: any[] = [where("companyId", "==", companyId)];
     // Filtro por estado
     if (statusFilter && statusFilter !== "ALL") {
       constraints.push(where("status", "==", statusFilter));
@@ -161,6 +160,45 @@ export const getPaginatedTrucks = async (
     };
   } catch (error) {
     console.error("Error al obtener camiones paginados:", error);
+    throw error;
+  }
+};
+
+export const addTruckWithPlanValidation = async (
+  truckData: any,
+  companyId: string,
+) => {
+  try {
+    // 1. Obtener los límites de la empresa
+    const companySnap = await getDoc(doc(db, "companies", companyId));
+    if (!companySnap.exists()) throw new Error("Empresa no registrada.");
+    const company = companySnap.data();
+
+    // 2. Contar cuántos camiones ya tiene registrados esa empresa en el servidor (Escalable)
+    const q = query(
+      collection(db, "trucks"),
+      where("companyId", "==", companyId),
+    );
+    const countSnapshot = await getCountFromServer(q);
+    const currentTrucksCount = countSnapshot.data().count;
+
+    // 3. Validar límite estricto
+    if (currentTrucksCount >= company.limits.maxTrucks) {
+      throw new Error(
+        `Has alcanzado el límite de tu Plan ${company.plan} (${company.limits.maxTrucks} camiones). Contáctanos para actualizar tu plan.`,
+      );
+    }
+
+    // 4. Si pasa la validación, se guarda el documento
+    const docRef = await addDoc(collection(db, "trucks"), {
+      ...truckData,
+      companyId,
+      createdAt: serverTimestamp(),
+    });
+
+    return { success: true, id: docRef.id };
+  } catch (error: any) {
+    console.error("Error al añadir camión con validación:", error);
     throw error;
   }
 };

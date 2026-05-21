@@ -26,6 +26,7 @@ export default function LoginPage() {
         password,
       );
       const profile = await getUserProfile(userCredential.user.uid);
+      console.log("Perfil obtenido tras login:", profile); // <-- Debugging
 
       // Guardamos tokens en cookies para que el Middleware de Next.js las lea
       const token = await userCredential.user.getIdToken();
@@ -36,11 +37,13 @@ export default function LoginPage() {
       }
 
       // REDIRECCIÓN BASADA EN EL ROL
-      if (profile?.role === "ADMIN") {
+      if (profile?.role === "SUPERADMIN") {
+        router.push("/superadmin/companies");
+      } else if (profile?.role === "ADMIN") {
         router.push("/admin/dashboard");
-      } else {
-        // CAMBIO: Redirigimos directamente a la raíz de driver donde está nuestra nueva vista unificada
-        router.push("/driver");
+      } else if (profile?.role === "INSPECTOR") {
+        // Redirigimos a la app móvil del inspector
+        router.push("/inspector");
       }
     } catch (err) {
       console.error(err);

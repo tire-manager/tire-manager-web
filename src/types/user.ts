@@ -1,16 +1,15 @@
 // src/types/user.ts
-export type UserRole = "ADMIN" | "DRIVER";
+export type UserRole = "SUPERADMIN" | "ADMIN" | "INSPECTOR"; // SUPERADMIN es para ti (dueño del SaaS)
 
-// src/types/user.ts
 export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
-  role: "ADMIN" | "DRIVER";
+  role: UserRole;
   status?: "ACTIVE" | "INACTIVE" | "ON_VACATION";
 
-  // 👇 AQUÍ ESTÁ EL CAMBIO: Agregamos " | null "
-  truckId?: string | null;
+  companyId: string; // <-- EL NÚCLEO DEL SAAS: ID de la empresa a la que pertenece
 
+  truckId?: string | null;
   createdAt?: any;
 }

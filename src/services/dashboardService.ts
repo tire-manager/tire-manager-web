@@ -11,48 +11,71 @@ import {
 } from "firebase/firestore";
 import { Tire } from "@/types/tire";
 
-export const getDashboardMetrics = async () => {
+export const getDashboardMetrics = async (companyId: string) => {
   const tiresRef = collection(db, "tires");
   const trucksRef = collection(db, "trucks");
 
   try {
-    // 1. ESCALABILIDAD EXTREMA: Usamos getCountFromServer
-    // Esto no descarga los documentos, solo pide el número exacto a Firebase.
+    // 1. FILTRO SAAS APLICADO A TODOS LOS CONTADORES
     const activeTrucksP = getCountFromServer(
-      query(trucksRef, where("status", "==", "ACTIVE")),
+      query(
+        trucksRef,
+        where("companyId", "==", companyId),
+        where("status", "==", "ACTIVE"),
+      ),
     );
     const maintenanceTrucksP = getCountFromServer(
-      query(trucksRef, where("status", "==", "IN_MAINTENANCE")),
+      query(
+        trucksRef,
+        where("companyId", "==", companyId),
+        where("status", "==", "IN_MAINTENANCE"),
+      ),
     );
-    const totalTrucksP = getCountFromServer(trucksRef);
+    const totalTrucksP = getCountFromServer(
+      query(trucksRef, where("companyId", "==", companyId)),
+    );
 
     const inUseTiresP = getCountFromServer(
-      query(tiresRef, where("status", "==", "IN_USE")),
+      query(
+        tiresRef,
+        where("companyId", "==", companyId),
+        where("status", "==", "IN_USE"),
+      ),
     );
     const availableTiresP = getCountFromServer(
-      query(tiresRef, where("status", "==", "AVAILABLE")),
+      query(
+        tiresRef,
+        where("companyId", "==", companyId),
+        where("status", "==", "AVAILABLE"),
+      ),
     );
     const discardedTiresP = getCountFromServer(
-      query(tiresRef, where("status", "==", "DISCARDED")),
+      query(
+        tiresRef,
+        where("companyId", "==", companyId),
+        where("status", "==", "DISCARDED"),
+      ),
     );
-    const totalTiresP = getCountFromServer(tiresRef);
+    const totalTiresP = getCountFromServer(
+      query(tiresRef, where("companyId", "==", companyId)),
+    );
 
-    // 2. LLANTAS CRÍTICAS (Paginación Limitada)
-    // En vez de traer TODA la base, solo traemos las 5 llantas con más desgaste urgente
+    // 2. LLANTAS CRÍTICAS (Aisladas por empresa)
     const criticalQuery = query(
       tiresRef,
+      where("companyId", "==", companyId),
       where("status", "==", "IN_USE"),
       where("currentTreadDepth", "<=", 4),
-      orderBy("currentTreadDepth", "asc"), // Las peores primero
+      orderBy("currentTreadDepth", "asc"),
       limit(5),
     );
     const criticalDocsP = getDocs(criticalQuery);
 
-    // 3. FINANZAS MULTIMONEDA
-    // Obtenemos las llantas para separar precios en Dólares y Soles
-    const allTiresDocsP = getDocs(tiresRef);
+    // 3. FINANZAS (Solo facturación de esta empresa)
+    const allTiresDocsP = getDocs(
+      query(tiresRef, where("companyId", "==", companyId)),
+    );
 
-    // Ejecutamos todas las consultas al mismo tiempo en paralelo (Súper rápido)
     const [
       activeTrucks,
       maintenanceTrucks,
@@ -79,20 +102,15 @@ export const getDashboardMetrics = async () => {
       (d) => ({ id: d.id, ...d.data() }) as Tire,
     );
 
-    // LÓGICA DE MONEDAS: Separamos las bolsas de dinero
     let totalPEN = 0;
     let totalUSD = 0;
 
     allTiresDocs.docs.forEach((doc) => {
       const data = doc.data();
       const price = data.price || 0;
-      const currency = data.currency || "PEN"; // Si no tiene, asumimos Soles por defecto
-
-      if (currency === "USD") {
-        totalUSD += price;
-      } else {
-        totalPEN += price;
-      }
+      const currency = data.currency || "PEN";
+      if (currency === "USD") totalUSD += price;
+      else totalPEN += price;
     });
 
     return {

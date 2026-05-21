@@ -17,6 +17,7 @@ import {
 } from "@/services/tireService";
 import Link from "next/link";
 import toast from "react-hot-toast";
+import { useAuth } from "@/context/AuthContext";
 
 interface InventoryTableProps {
   truckMap: Record<string, string>;
@@ -29,6 +30,8 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
   onEditTire,
   onRefreshNeeded,
 }) => {
+  const { profile } = useAuth();
+
   const [tires, setTires] = useState<Tire[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -52,6 +55,7 @@ export const InventoryTable: React.FC<InventoryTableProps> = ({
     setLoading(true);
     try {
       const { tires: newTires, lastVisible } = await getPaginatedInventory(
+        profile?.companyId || "",
         currentSize,
         cursors[cursorIdx],
         currentStatus,

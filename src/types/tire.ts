@@ -1,6 +1,7 @@
 export type TireStatus = "AVAILABLE" | "IN_USE" | "MAINTENANCE" | "DISCARDED";
 export interface Tire {
   id: string;
+  companyId: string; // <-- NUEVO
   serialNumber: string;
   brand: string;
   model: string;
@@ -21,6 +22,7 @@ export interface Tire {
 // src/types/tire.ts
 export interface TireHistory {
   id?: string;
+  companyId: string; // <-- NUEVO
   tireId: string;
   truckId: string;
   driverId: string;

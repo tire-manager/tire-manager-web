@@ -2,7 +2,6 @@
 import { db } from "@/lib/firebase/clientApp";
 import { doc, getDoc, setDoc } from "firebase/firestore";
 
-// Usamos una sola interfaz porque la estructura es idéntica
 export interface Brand {
   id: string;
   name: string;
@@ -17,17 +16,16 @@ export interface GlobalSettings {
   criticalWearLimit: number;
   defaultInitialDepth: number;
   alertEmail: string;
-
-  // Catálogos separados para mantener la base de datos limpia
   tireBrands: Brand[];
   vehicleBrands: Brand[];
 }
 
-const SETTINGS_ID = "general";
-
-export const getGlobalSettings = async (): Promise<GlobalSettings> => {
+// OBTENER CONFIGURACIONES DE LA EMPRESA
+export const getGlobalSettings = async (
+  companyId: string,
+): Promise<GlobalSettings> => {
   try {
-    const docRef = doc(db, "settings", SETTINGS_ID);
+    const docRef = doc(db, "settings", companyId); // <-- MAGIA SAAS: Cada empresa tiene su propio documento
     const docSnap = await getDoc(docRef);
 
     if (docSnap.exists()) {
@@ -40,11 +38,7 @@ export const getGlobalSettings = async (): Promise<GlobalSettings> => {
         criticalWearLimit: data.criticalWearLimit || 3.0,
         defaultInitialDepth: data.defaultInitialDepth || 12.0,
         alertEmail: data.alertEmail || "",
-
-        // Migración automática: Si existía 'brands' antiguo, lo toma como 'tireBrands'
         tireBrands: data.tireBrands || data.brands || [],
-
-        // Catálogo de Vehículos con valores por defecto
         vehicleBrands: data.vehicleBrands || [
           { id: "1", name: "VOLVO", models: ["FH16", "FMX"] },
           { id: "2", name: "SCANIA", models: ["G410", "R450"] },
@@ -77,15 +71,15 @@ export const getGlobalSettings = async (): Promise<GlobalSettings> => {
   }
 };
 
-export const updateGlobalSettings = async (settings: GlobalSettings) => {
+// ACTUALIZAR CONFIGURACIONES DE LA EMPRESA
+export const updateGlobalSettings = async (
+  companyId: string,
+  settings: GlobalSettings,
+) => {
   try {
-    const docRef = doc(db, "settings", SETTINGS_ID);
-    // Eliminamos el campo 'brands' antiguo antes de guardar para limpiar Firebase
+    const docRef = doc(db, "settings", companyId);
     const dataToSave = { ...settings };
-    if ("brands" in dataToSave) {
-      delete (dataToSave as any).brands;
-    }
-
+    if ("brands" in dataToSave) delete (dataToSave as any).brands;
     await setDoc(docRef, dataToSave, { merge: true });
     return { success: true };
   } catch (error) {

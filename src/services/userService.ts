@@ -43,10 +43,14 @@ export const createUserProfile = async (
   }
 };
 
-export const getUsers = async (): Promise<UserProfile[]> => {
+// ACTUALIZADO: Filtro de seguridad SaaS (companyId)
+export const getUsers = async (companyId: string): Promise<UserProfile[]> => {
   try {
-    const usersRef = collection(db, "users");
-    const snapshot = await getDocs(usersRef);
+    const q = query(
+      collection(db, "users"),
+      where("companyId", "==", companyId),
+    );
+    const snapshot = await getDocs(q);
 
     return snapshot.docs.map((doc) => ({
       ...doc.data(),
@@ -57,7 +61,6 @@ export const getUsers = async (): Promise<UserProfile[]> => {
   }
 };
 
-// <-- NUEVA FUNCIÓN PARA EDITAR USUARIOS -->
 export const updateUserProfile = async (
   uid: string,
   data: Partial<UserProfile>,
@@ -95,21 +98,27 @@ export const createUserViaApi = async (userData: any) => {
   }
 };
 
-export const getDrivers = async (): Promise<UserProfile[]> => {
+// NUEVO: Reemplaza a getDrivers. Útil si a futuro necesitas listar solo Inspectores de una empresa
+export const getInspectors = async (
+  companyId: string,
+): Promise<UserProfile[]> => {
   try {
-    // 1. Consultamos solo por rol para evitar el error de Índices en Firebase
-    const q = query(collection(db, "users"), where("role", "==", "DRIVER"));
+    const q = query(
+      collection(db, "users"),
+      where("companyId", "==", companyId),
+      where("role", "==", "INSPECTOR"),
+    );
     const snapshot = await getDocs(q);
 
-    const allDrivers = snapshot.docs.map((doc) => doc.data() as UserProfile);
+    const allInspectors = snapshot.docs.map((doc) => doc.data() as UserProfile);
 
-    // 2. Filtramos localmente (JavaScript) aceptando a los ACTIVE
-    // y a los usuarios antiguos que aún no tienen el campo status
-    return allDrivers.filter(
-      (driver) => !driver.status || driver.status === "ACTIVE",
+    // Filtramos localmente (JavaScript) aceptando solo a los ACTIVE
+    // o usuarios que aún no tienen el campo status
+    return allInspectors.filter(
+      (inspector) => !inspector.status || inspector.status === "ACTIVE",
     );
   } catch (error) {
-    console.error("Error al obtener choferes:", error);
+    console.error("Error al obtener inspectores:", error);
     return [];
   }
 };
